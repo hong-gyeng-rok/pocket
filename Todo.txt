@@ -1,25 +1,41 @@
 # Pocket Project Development Roadmap
 
-## Phase 1: 무한 캔버스 엔진 (The Engine)
-- [ ] Canvas 기본 세팅 및 Full Screen 렌더링
-- [ ] 렌더링 루프 (requestAnimationFrame) 구현
-- [ ] 카메라 상태(Pan, Zoom) 관리용 Ref 구현
-- [ ] 마우스/휠 이벤트를 통한 Pan & Zoom 기능
-- [ ] 무한 캔버스 확인을 위한 배경 격자(Grid) 구현
+## Phase 1: 무한 캔버스 엔진 (The Engine) [Completed]
+- [x] Canvas 기본 세팅 및 Full Screen 렌더링
+- [x] 렌더링 루프 (requestAnimationFrame) 구현
+- [x] 카메라 상태(Pan, Zoom) 관리용 Global Store (Zustand) 구현
+- [x] 마우스/휠 이벤트를 통한 Pan & Zoom 기능
+- [x] 무한 캔버스 확인을 위한 배경 (Pure White Background)
 
-## Phase 2: 펜 드로잉 (The Pen)
-- [ ] 선(Stroke) 데이터 구조 정의
-- [ ] 마우스 이벤트를 이용한 드로잉 로직 구현
-- [ ] Screen 좌표를 World 좌표로 변환하는 공식 적용
-- [ ] 그려진 선들을 캔버스에 렌더링
+## Phase 2: 펜 드로잉 (The Pen) [Completed]
+- [x] 선(Stroke) 데이터 구조 정의 (JSON Serializable)
+- [x] 마우스 이벤트를 이용한 드로잉 로직 구현
+- [x] Screen 좌표를 World 좌표로 변환하는 공식 적용
+- [x] 그려진 선들을 캔버스에 렌더링 (Culling 준비)
+- [x] 획 지우개 (Stroke Eraser) 알고리즘 구현 (Collision Detection)
 
-## Phase 3: 도구 및 색상 제어 (The Tools)
-- [ ] 툴바 UI 구현 (Tailwind CSS)
-- [ ] 3색(검정, 빨강, 파랑) 색상 선택 기능
-- [ ] 모드 전환 (펜 모드 vs 손 모드) 구현
+## Phase 3: 도구 및 색상 제어 (The Tools) [Completed]
+- [x] 툴바 UI 구현 (Floating Glassmorphism)
+- [x] 3색(검정, 빨강, 파랑) 색상 선택 기능
+- [x] 모드 전환 (펜 모드 vs 손 모드 vs 지우개 모드)
+- [x] 커스텀 마우스 커서 구현 (Filled/Stroked Circle)
+- [x] 툴팁(Tooltip) 및 단축키 안내 UI 구현
 
-## Phase 4: 메모지 레이어 (The Memos)
-- [ ] 메모지 데이터 구조 정의
-- [ ] Canvas 위에 HTML Overlay 레이어 생성
-- [ ] 카메라 상태(Pan, Zoom)와 HTML 요소 위치 동기화
-- [ ] 텍스트 입력 가능한 메모지 컴포넌트 구현
+## Phase 4: 메모지 레이어 (The Memos) [Completed]
+- [x] 메모지 데이터 구조 정의 및 Store 연동
+- [x] Canvas 위에 HTML Overlay 레이어 생성 및 좌표 동기화
+- [x] CSS Transform을 활용한 고성능 Overlay 렌더링
+- [x] 텍스트 입력 가능한 메모지 컴포넌트 구현
+- [x] 메모지 드래그 이동 및 삭제 기능
+- [x] 메모지 리사이즈 (우하단 핸들) 기능
+
+## Phase 5: 고급 기능 (Advanced Features) [Completed]
+- [x] 전역 단축키 시스템 구현 (Space: Pan, Ctrl+D: Pen, Ctrl+E: Eraser 등)
+- [x] 실행 취소 / 다시 실행 (Undo/Redo) 시스템 (with zundo)
+- [x] 툴바에 Undo/Redo 버튼 및 상태 표시 추가
+- [x] 더블 클릭으로 간편 메모 생성
+
+## Phase 6: 데이터 저장 및 확장 (Next Steps)
+- [ ] LocalStorage 연동 (자동 저장)
+- [ ] 이미지 업로드 및 배치
+- [ ] 미니맵 (Minimap) 구현
