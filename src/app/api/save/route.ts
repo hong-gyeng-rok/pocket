@@ -1,8 +1,14 @@
 // src/app/api/save/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@/generated/client";
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient({} as any);
+const connectionString = process.env.DATABASE_URL;
+
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter } as any);
 
 export async function POST(request: Request) {
   try {
