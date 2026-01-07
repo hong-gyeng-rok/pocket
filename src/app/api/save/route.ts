@@ -1,6 +1,6 @@
 // src/app/api/save/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@/generated/client";
+import { PrismaClient } from "@/generated/client/client";
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
