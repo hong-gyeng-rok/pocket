@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@/generated/client";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({});
 
 export async function POST(request: Request) {
   try {
