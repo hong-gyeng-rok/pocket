@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface Point {
   x: number;
@@ -44,40 +45,47 @@ interface CanvasState {
 }
 
 export const useCanvasStore = create<CanvasState>()(
-  temporal((set) => ({
-    strokes: [],
-    memos: [],
+  persist(
+    temporal((set) => ({
+      strokes: [],
+      memos: [],
 
-    addStroke: (stroke) => set((state) => ({
-      strokes: [...state.strokes, stroke]
+      addStroke: (stroke) => set((state) => ({
+        strokes: [...state.strokes, stroke]
+      })),
+
+      setStrokes: (strokes) => set({ strokes }),
+
+      clearStrokes: () => set({ strokes: [] }),
+
+      removeStroke: (id) => set((state) => ({
+        strokes: state.strokes.filter((s) => s.id !== id)
+      })),
+
+      addMemo: (memo) => set((state) => ({
+        memos: [...state.memos, memo]
+      })),
+
+      updateMemo: (id, content) => set((state) => ({
+        memos: state.memos.map((m) => m.id === id ? { ...m, content } : m)
+      })),
+
+      moveMemo: (id, x, y) => set((state) => ({
+        memos: state.memos.map((m) => m.id === id ? { ...m, x, y } : m)
+      })),
+
+      resizeMemo: (id, width, height) => set((state) => ({
+        memos: state.memos.map((m) => m.id === id ? { ...m, width, height } : m)
+      })),
+
+      removeMemo: (id) => set((state) => ({
+        memos: state.memos.filter((m) => m.id !== id)
+      })),
     })),
-
-    setStrokes: (strokes) => set({ strokes }),
-
-    clearStrokes: () => set({ strokes: [] }),
-
-    removeStroke: (id) => set((state) => ({
-      strokes: state.strokes.filter((s) => s.id !== id)
-    })),
-
-    addMemo: (memo) => set((state) => ({
-      memos: [...state.memos, memo]
-    })),
-
-    updateMemo: (id, content) => set((state) => ({
-      memos: state.memos.map((m) => m.id === id ? { ...m, content } : m)
-    })),
-
-    moveMemo: (id, x, y) => set((state) => ({
-      memos: state.memos.map((m) => m.id === id ? { ...m, x, y } : m)
-    })),
-
-    resizeMemo: (id, width, height) => set((state) => ({
-      memos: state.memos.map((m) => m.id === id ? { ...m, width, height } : m)
-    })),
-
-    removeMemo: (id) => set((state) => ({
-      memos: state.memos.filter((m) => m.id !== id)
-    })),
-  }))
+    {
+      name: 'pocket-canvas-storage', // LocalStorage key name
+      storage: createJSONStorage(() => localStorage), // Explicitly use localStorage
+      partialize: (state) => ({ strokes: state.strokes, memos: state.memos }), // Save only data, not actions or zundo state
+    }
+  )
 );
