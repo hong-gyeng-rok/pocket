@@ -1,27 +1,26 @@
 import { create } from 'zustand';
 
-// Define the types of tools available
-export type ToolType = 'NONE' | 'PEN' | 'ERASER';
+export type Tool = 'NONE' | 'PEN' | 'ERASER' | 'RECTANGLE' | 'CIRCLE' | 'ARROW' | 'TEXT';
+export type Mode = 'DRAWING' | 'OBJECT';
 
 interface ToolState {
-  tool: ToolType;
+  tool: Tool;
+  mode: Mode;
   color: string;
   strokeWidth: number;
-  
-  // Actions
-  setTool: (tool: ToolType) => void;
+  setTool: (tool: Tool) => void;
+  setMode: (mode: Mode) => void;
   setColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
 }
 
 export const useToolStore = create<ToolState>((set) => ({
-  // Initial State
-  tool: 'NONE', // Default to hand tool (NONE)
-  color: '#000000', // Default black
-  strokeWidth: 2,
-
-  // Actions implementation
+  tool: 'PEN',
+  mode: 'DRAWING',
+  color: '#000000',
+  strokeWidth: 5,
   setTool: (tool) => set({ tool }),
+  setMode: (mode) => set({ mode, tool: mode === 'DRAWING' ? 'PEN' : 'NONE' }), // 모드 전환 시 기본 도구 설정
   setColor: (color) => set({ color }),
   setStrokeWidth: (strokeWidth) => set({ strokeWidth }),
 }));

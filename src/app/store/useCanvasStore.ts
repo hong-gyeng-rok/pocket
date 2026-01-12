@@ -26,9 +26,35 @@ export interface Memo {
   color: string;
 }
 
+export interface ImageElement {
+  id: string;
+  src: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  alt?: string;
+}
+
+export interface Shape {
+  id: string;
+  type: 'RECTANGLE' | 'CIRCLE' | 'TEXT';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillColor: string;
+  strokeColor: string;
+  strokeWidth: number;
+  text?: string; // 도형 안의 텍스트 또는 텍스트 객체 내용
+  textColor?: string;
+}
+
 interface CanvasState {
   strokes: Stroke[];
-  memos: Memo[];
+  memos: Memo[]; // Legacy support (can be migrated to shapes later)
+  images: ImageElement[];
+  shapes: Shape[];
   
   // Actions
   addStroke: (stroke: Stroke) => void;
@@ -42,6 +68,16 @@ interface CanvasState {
   moveMemo: (id: string, x: number, y: number) => void;
   resizeMemo: (id: string, width: number, height: number) => void;
   removeMemo: (id: string) => void;
+
+  // Image Actions
+  addImage: (image: ImageElement) => void;
+  updateImage: (id: string, updates: Partial<Omit<ImageElement, 'id'>>) => void;
+  removeImage: (id: string) => void;
+
+  // Shape Actions
+  addShape: (shape: Shape) => void;
+  updateShape: (id: string, updates: Partial<Omit<Shape, 'id'>>) => void;
+  removeShape: (id: string) => void;
 }
 
 export const useCanvasStore = create<CanvasState>()(
@@ -49,6 +85,8 @@ export const useCanvasStore = create<CanvasState>()(
     temporal((set) => ({
       strokes: [],
       memos: [],
+      images: [],
+      shapes: [],
 
       addStroke: (stroke) => set((state) => ({
         strokes: [...state.strokes, stroke]
@@ -81,11 +119,40 @@ export const useCanvasStore = create<CanvasState>()(
       removeMemo: (id) => set((state) => ({
         memos: state.memos.filter((m) => m.id !== id)
       })),
+
+      addImage: (image) => set((state) => ({
+        images: [...state.images, image]
+      })),
+
+      updateImage: (id, updates) => set((state) => ({
+        images: state.images.map((img) => img.id === id ? { ...img, ...updates } : img)
+      })),
+
+      removeImage: (id) => set((state) => ({
+        images: state.images.filter((img) => img.id !== id)
+      })),
+
+      addShape: (shape) => set((state) => ({
+        shapes: [...state.shapes, shape]
+      })),
+
+      updateShape: (id, updates) => set((state) => ({
+        shapes: state.shapes.map((s) => s.id === id ? { ...s, ...updates } : s)
+      })),
+
+      removeShape: (id) => set((state) => ({
+        shapes: state.shapes.filter((s) => s.id !== id)
+      })),
     })),
     {
-      name: 'pocket-canvas-storage', // LocalStorage key name
-      storage: createJSONStorage(() => localStorage), // Explicitly use localStorage
-      partialize: (state) => ({ strokes: state.strokes, memos: state.memos }), // Save only data, not actions or zundo state
+      name: 'pocket-canvas-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ 
+        strokes: state.strokes, 
+        memos: state.memos, 
+        images: state.images,
+        shapes: state.shapes
+      }),
     }
   )
 );

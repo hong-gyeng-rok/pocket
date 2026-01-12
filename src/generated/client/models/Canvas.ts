@@ -26,19 +26,25 @@ export type AggregateCanvas = {
 
 export type CanvasMinAggregateOutputType = {
   id: string | null
+  title: string | null
+  userId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
 
 export type CanvasMaxAggregateOutputType = {
   id: string | null
+  title: string | null
+  userId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
 
 export type CanvasCountAggregateOutputType = {
   id: number
+  title: number
   content: number
+  userId: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -47,19 +53,25 @@ export type CanvasCountAggregateOutputType = {
 
 export type CanvasMinAggregateInputType = {
   id?: true
+  title?: true
+  userId?: true
   createdAt?: true
   updatedAt?: true
 }
 
 export type CanvasMaxAggregateInputType = {
   id?: true
+  title?: true
+  userId?: true
   createdAt?: true
   updatedAt?: true
 }
 
 export type CanvasCountAggregateInputType = {
   id?: true
+  title?: true
   content?: true
+  userId?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -139,7 +151,9 @@ export type CanvasGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalA
 
 export type CanvasGroupByOutputType = {
   id: string
+  title: string | null
   content: runtime.JsonValue
+  userId: string
   createdAt: Date
   updatedAt: Date
   _count: CanvasCountAggregateOutputType | null
@@ -167,16 +181,22 @@ export type CanvasWhereInput = {
   OR?: Prisma.CanvasWhereInput[]
   NOT?: Prisma.CanvasWhereInput | Prisma.CanvasWhereInput[]
   id?: Prisma.StringFilter<"Canvas"> | string
+  title?: Prisma.StringNullableFilter<"Canvas"> | string | null
   content?: Prisma.JsonFilter<"Canvas">
+  userId?: Prisma.StringFilter<"Canvas"> | string
   createdAt?: Prisma.DateTimeFilter<"Canvas"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Canvas"> | Date | string
+  user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
 
 export type CanvasOrderByWithRelationInput = {
   id?: Prisma.SortOrder
+  title?: Prisma.SortOrderInput | Prisma.SortOrder
   content?: Prisma.SortOrder
+  userId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  user?: Prisma.UserOrderByWithRelationInput
 }
 
 export type CanvasWhereUniqueInput = Prisma.AtLeast<{
@@ -184,14 +204,19 @@ export type CanvasWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.CanvasWhereInput | Prisma.CanvasWhereInput[]
   OR?: Prisma.CanvasWhereInput[]
   NOT?: Prisma.CanvasWhereInput | Prisma.CanvasWhereInput[]
+  title?: Prisma.StringNullableFilter<"Canvas"> | string | null
   content?: Prisma.JsonFilter<"Canvas">
+  userId?: Prisma.StringFilter<"Canvas"> | string
   createdAt?: Prisma.DateTimeFilter<"Canvas"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Canvas"> | Date | string
+  user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "id">
 
 export type CanvasOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
+  title?: Prisma.SortOrderInput | Prisma.SortOrder
   content?: Prisma.SortOrder
+  userId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.CanvasCountOrderByAggregateInput
@@ -204,48 +229,61 @@ export type CanvasScalarWhereWithAggregatesInput = {
   OR?: Prisma.CanvasScalarWhereWithAggregatesInput[]
   NOT?: Prisma.CanvasScalarWhereWithAggregatesInput | Prisma.CanvasScalarWhereWithAggregatesInput[]
   id?: Prisma.StringWithAggregatesFilter<"Canvas"> | string
+  title?: Prisma.StringNullableWithAggregatesFilter<"Canvas"> | string | null
   content?: Prisma.JsonWithAggregatesFilter<"Canvas">
+  userId?: Prisma.StringWithAggregatesFilter<"Canvas"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Canvas"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Canvas"> | Date | string
 }
 
 export type CanvasCreateInput = {
   id?: string
+  title?: string | null
   content: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutCanvasesInput
 }
 
 export type CanvasUncheckedCreateInput = {
   id?: string
+  title?: string | null
   content: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  userId: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
 
 export type CanvasUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutCanvasesNestedInput
 }
 
 export type CanvasUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type CanvasCreateManyInput = {
   id?: string
+  title?: string | null
   content: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  userId: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
 
 export type CanvasUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -253,76 +291,250 @@ export type CanvasUpdateManyMutationInput = {
 
 export type CanvasUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 export type CanvasCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  title?: Prisma.SortOrder
   content?: Prisma.SortOrder
+  userId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type CanvasMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  title?: Prisma.SortOrder
+  userId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type CanvasMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
+  title?: Prisma.SortOrder
+  userId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type CanvasListRelationFilter = {
+  every?: Prisma.CanvasWhereInput
+  some?: Prisma.CanvasWhereInput
+  none?: Prisma.CanvasWhereInput
+}
+
+export type CanvasOrderByRelationAggregateInput = {
+  _count?: Prisma.SortOrder
 }
 
 export type StringFieldUpdateOperationsInput = {
   set?: string
 }
 
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
+}
+
 export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
+}
+
+export type CanvasCreateNestedManyWithoutUserInput = {
+  create?: Prisma.XOR<Prisma.CanvasCreateWithoutUserInput, Prisma.CanvasUncheckedCreateWithoutUserInput> | Prisma.CanvasCreateWithoutUserInput[] | Prisma.CanvasUncheckedCreateWithoutUserInput[]
+  connectOrCreate?: Prisma.CanvasCreateOrConnectWithoutUserInput | Prisma.CanvasCreateOrConnectWithoutUserInput[]
+  createMany?: Prisma.CanvasCreateManyUserInputEnvelope
+  connect?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+}
+
+export type CanvasUncheckedCreateNestedManyWithoutUserInput = {
+  create?: Prisma.XOR<Prisma.CanvasCreateWithoutUserInput, Prisma.CanvasUncheckedCreateWithoutUserInput> | Prisma.CanvasCreateWithoutUserInput[] | Prisma.CanvasUncheckedCreateWithoutUserInput[]
+  connectOrCreate?: Prisma.CanvasCreateOrConnectWithoutUserInput | Prisma.CanvasCreateOrConnectWithoutUserInput[]
+  createMany?: Prisma.CanvasCreateManyUserInputEnvelope
+  connect?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+}
+
+export type CanvasUpdateManyWithoutUserNestedInput = {
+  create?: Prisma.XOR<Prisma.CanvasCreateWithoutUserInput, Prisma.CanvasUncheckedCreateWithoutUserInput> | Prisma.CanvasCreateWithoutUserInput[] | Prisma.CanvasUncheckedCreateWithoutUserInput[]
+  connectOrCreate?: Prisma.CanvasCreateOrConnectWithoutUserInput | Prisma.CanvasCreateOrConnectWithoutUserInput[]
+  upsert?: Prisma.CanvasUpsertWithWhereUniqueWithoutUserInput | Prisma.CanvasUpsertWithWhereUniqueWithoutUserInput[]
+  createMany?: Prisma.CanvasCreateManyUserInputEnvelope
+  set?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  disconnect?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  delete?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  connect?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  update?: Prisma.CanvasUpdateWithWhereUniqueWithoutUserInput | Prisma.CanvasUpdateWithWhereUniqueWithoutUserInput[]
+  updateMany?: Prisma.CanvasUpdateManyWithWhereWithoutUserInput | Prisma.CanvasUpdateManyWithWhereWithoutUserInput[]
+  deleteMany?: Prisma.CanvasScalarWhereInput | Prisma.CanvasScalarWhereInput[]
+}
+
+export type CanvasUncheckedUpdateManyWithoutUserNestedInput = {
+  create?: Prisma.XOR<Prisma.CanvasCreateWithoutUserInput, Prisma.CanvasUncheckedCreateWithoutUserInput> | Prisma.CanvasCreateWithoutUserInput[] | Prisma.CanvasUncheckedCreateWithoutUserInput[]
+  connectOrCreate?: Prisma.CanvasCreateOrConnectWithoutUserInput | Prisma.CanvasCreateOrConnectWithoutUserInput[]
+  upsert?: Prisma.CanvasUpsertWithWhereUniqueWithoutUserInput | Prisma.CanvasUpsertWithWhereUniqueWithoutUserInput[]
+  createMany?: Prisma.CanvasCreateManyUserInputEnvelope
+  set?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  disconnect?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  delete?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  connect?: Prisma.CanvasWhereUniqueInput | Prisma.CanvasWhereUniqueInput[]
+  update?: Prisma.CanvasUpdateWithWhereUniqueWithoutUserInput | Prisma.CanvasUpdateWithWhereUniqueWithoutUserInput[]
+  updateMany?: Prisma.CanvasUpdateManyWithWhereWithoutUserInput | Prisma.CanvasUpdateManyWithWhereWithoutUserInput[]
+  deleteMany?: Prisma.CanvasScalarWhereInput | Prisma.CanvasScalarWhereInput[]
+}
+
+export type CanvasCreateWithoutUserInput = {
+  id?: string
+  title?: string | null
+  content: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type CanvasUncheckedCreateWithoutUserInput = {
+  id?: string
+  title?: string | null
+  content: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type CanvasCreateOrConnectWithoutUserInput = {
+  where: Prisma.CanvasWhereUniqueInput
+  create: Prisma.XOR<Prisma.CanvasCreateWithoutUserInput, Prisma.CanvasUncheckedCreateWithoutUserInput>
+}
+
+export type CanvasCreateManyUserInputEnvelope = {
+  data: Prisma.CanvasCreateManyUserInput | Prisma.CanvasCreateManyUserInput[]
+  skipDuplicates?: boolean
+}
+
+export type CanvasUpsertWithWhereUniqueWithoutUserInput = {
+  where: Prisma.CanvasWhereUniqueInput
+  update: Prisma.XOR<Prisma.CanvasUpdateWithoutUserInput, Prisma.CanvasUncheckedUpdateWithoutUserInput>
+  create: Prisma.XOR<Prisma.CanvasCreateWithoutUserInput, Prisma.CanvasUncheckedCreateWithoutUserInput>
+}
+
+export type CanvasUpdateWithWhereUniqueWithoutUserInput = {
+  where: Prisma.CanvasWhereUniqueInput
+  data: Prisma.XOR<Prisma.CanvasUpdateWithoutUserInput, Prisma.CanvasUncheckedUpdateWithoutUserInput>
+}
+
+export type CanvasUpdateManyWithWhereWithoutUserInput = {
+  where: Prisma.CanvasScalarWhereInput
+  data: Prisma.XOR<Prisma.CanvasUpdateManyMutationInput, Prisma.CanvasUncheckedUpdateManyWithoutUserInput>
+}
+
+export type CanvasScalarWhereInput = {
+  AND?: Prisma.CanvasScalarWhereInput | Prisma.CanvasScalarWhereInput[]
+  OR?: Prisma.CanvasScalarWhereInput[]
+  NOT?: Prisma.CanvasScalarWhereInput | Prisma.CanvasScalarWhereInput[]
+  id?: Prisma.StringFilter<"Canvas"> | string
+  title?: Prisma.StringNullableFilter<"Canvas"> | string | null
+  content?: Prisma.JsonFilter<"Canvas">
+  userId?: Prisma.StringFilter<"Canvas"> | string
+  createdAt?: Prisma.DateTimeFilter<"Canvas"> | Date | string
+  updatedAt?: Prisma.DateTimeFilter<"Canvas"> | Date | string
+}
+
+export type CanvasCreateManyUserInput = {
+  id?: string
+  title?: string | null
+  content: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type CanvasUpdateWithoutUserInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type CanvasUncheckedUpdateWithoutUserInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type CanvasUncheckedUpdateManyWithoutUserInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  content?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
 
 
 export type CanvasSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
+  title?: boolean
   content?: boolean
+  userId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["canvas"]>
 
 export type CanvasSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
+  title?: boolean
   content?: boolean
+  userId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["canvas"]>
 
 export type CanvasSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
+  title?: boolean
   content?: boolean
+  userId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["canvas"]>
 
 export type CanvasSelectScalar = {
   id?: boolean
+  title?: boolean
   content?: boolean
+  userId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type CanvasOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "content" | "createdAt" | "updatedAt", ExtArgs["result"]["canvas"]>
+export type CanvasOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "userId" | "createdAt" | "updatedAt", ExtArgs["result"]["canvas"]>
+export type CanvasInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+}
+export type CanvasIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+}
+export type CanvasIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
+}
 
 export type $CanvasPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Canvas"
-  objects: {}
+  objects: {
+    user: Prisma.$UserPayload<ExtArgs>
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
+    title: string | null
     content: runtime.JsonValue
+    userId: string
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["canvas"]>
@@ -719,6 +931,7 @@ readonly fields: CanvasFieldRefs;
  */
 export interface Prisma__CanvasClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -749,7 +962,9 @@ export interface Prisma__CanvasClient<T, Null = never, ExtArgs extends runtime.T
  */
 export interface CanvasFieldRefs {
   readonly id: Prisma.FieldRef<"Canvas", 'String'>
+  readonly title: Prisma.FieldRef<"Canvas", 'String'>
   readonly content: Prisma.FieldRef<"Canvas", 'Json'>
+  readonly userId: Prisma.FieldRef<"Canvas", 'String'>
   readonly createdAt: Prisma.FieldRef<"Canvas", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Canvas", 'DateTime'>
 }
@@ -769,6 +984,10 @@ export type CanvasFindUniqueArgs<ExtArgs extends runtime.Types.Extensions.Intern
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
+  /**
    * Filter, which Canvas to fetch.
    */
   where: Prisma.CanvasWhereUniqueInput
@@ -787,6 +1006,10 @@ export type CanvasFindUniqueOrThrowArgs<ExtArgs extends runtime.Types.Extensions
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
+  /**
    * Filter, which Canvas to fetch.
    */
   where: Prisma.CanvasWhereUniqueInput
@@ -804,6 +1027,10 @@ export type CanvasFindFirstArgs<ExtArgs extends runtime.Types.Extensions.Interna
    * Omit specific fields from the Canvas
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
   /**
    * Filter, which Canvas to fetch.
    */
@@ -853,6 +1080,10 @@ export type CanvasFindFirstOrThrowArgs<ExtArgs extends runtime.Types.Extensions.
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
+  /**
    * Filter, which Canvas to fetch.
    */
   where?: Prisma.CanvasWhereInput
@@ -901,6 +1132,10 @@ export type CanvasFindManyArgs<ExtArgs extends runtime.Types.Extensions.Internal
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
+  /**
    * Filter, which Canvas to fetch.
    */
   where?: Prisma.CanvasWhereInput
@@ -944,6 +1179,10 @@ export type CanvasCreateArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
+  /**
    * The data needed to create a Canvas.
    */
   data: Prisma.XOR<Prisma.CanvasCreateInput, Prisma.CanvasUncheckedCreateInput>
@@ -977,6 +1216,10 @@ export type CanvasCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensio
    */
   data: Prisma.CanvasCreateManyInput | Prisma.CanvasCreateManyInput[]
   skipDuplicates?: boolean
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasIncludeCreateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -991,6 +1234,10 @@ export type CanvasUpdateArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    * Omit specific fields from the Canvas
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
   /**
    * The data needed to update a Canvas.
    */
@@ -1043,6 +1290,10 @@ export type CanvasUpdateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensio
    * Limit how many Canvas to update.
    */
   limit?: number
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasIncludeUpdateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1057,6 +1308,10 @@ export type CanvasUpsertArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    * Omit specific fields from the Canvas
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
   /**
    * The filter to search for the Canvas to update in case it exists.
    */
@@ -1083,6 +1338,10 @@ export type CanvasDeleteArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    * Omit specific fields from the Canvas
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
   /**
    * Filter which Canvas to delete.
    */
@@ -1115,4 +1374,8 @@ export type CanvasDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalA
    * Omit specific fields from the Canvas
    */
   omit?: Prisma.CanvasOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.CanvasInclude<ExtArgs> | null
 }

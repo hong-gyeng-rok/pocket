@@ -3,9 +3,11 @@
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import MemoComponent from "@/app/component/memo/Memo";
+import ImageComponent from "@/app/component/image/ImageComponent";
 
 export default function OverlayLayer() {
   const memos = useCanvasStore((state) => state.memos);
+  const images = useCanvasStore((state) => state.images);
   const x = useCameraStore((state) => state.x);
   const y = useCameraStore((state) => state.y);
   const zoom = useCameraStore((state) => state.zoom);
@@ -30,6 +32,9 @@ export default function OverlayLayer() {
           height: '100%',
         }}
       >
+        {images.map((image) => (
+          <ImageComponent key={image.id} image={image} />
+        ))}
         {memos.map((memo) => (
           <MemoComponent key={memo.id} memo={memo} />
         ))}
