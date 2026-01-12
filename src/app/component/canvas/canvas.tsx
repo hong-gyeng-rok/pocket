@@ -29,10 +29,16 @@ export default function Canvas() {
   const setSelectedIds = useCanvasStore((state) => state.setSelectedIds);
   const updateShape = useCanvasStore((state) => state.updateShape);
   
-  // Memo related (for selection/deletion integration)
+  // Grouping & Locking Actions
+  const groupObjects = useCanvasStore((state) => state.groupObjects);
+  const ungroupObjects = useCanvasStore((state) => state.ungroupObjects);
+  const toggleLock = useCanvasStore((state) => state.toggleLock);
+  
+  // Memo related
   const memos = useCanvasStore((state) => state.memos);
   const removeMemo = useCanvasStore((state) => state.removeMemo);
   const moveMemo = useCanvasStore((state) => state.moveMemo);
+  const images = useCanvasStore((state) => state.images);
 
   const { isSpacePressed } = useKeyboardShortcuts();
   const requestRef = useRef<number>(0);
@@ -89,6 +95,17 @@ export default function Canvas() {
     };
   }, []);
 
+  // Helper: Find object by ID (generic)
+  const findObject = (id: string) => {
+      const s = shapes.find(s => s.id === id);
+      if (s) return { ...s, _type: 'SHAPE' };
+      const m = memos.find(m => m.id === id);
+      if (m) return { ...m, _type: 'MEMO' };
+      const i = images.find(i => i.id === id);
+      if (i) return { ...i, _type: 'IMAGE' };
+      return null;
+  };
+
   // Helper: Hit Test (Includes Memos)
   const hitTest = (x: number, y: number): { id: string, type: 'SHAPE' | 'MEMO' } | null => {
       // Check shapes (reverse order)
@@ -118,6 +135,15 @@ export default function Canvas() {
           if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
           if (e.key === 'Delete' || e.key === 'Backspace') {
+              const hasLocked = selectedIds.some(id => {
+                  const obj = findObject(id);
+                  return obj?.isLocked;
+              });
+              if (hasLocked) {
+                  console.log("Cannot delete locked objects");
+                  return;
+              }
+
               selectedIds.forEach(id => {
                   if (shapes.some(s => s.id === id)) removeShape(id);
                   if (memos.some(m => m.id === id)) removeMemo(id);
@@ -191,7 +217,6 @@ export default function Canvas() {
         ctx.fill();
       } else if (shape.type === 'ARROW') {
         ctx.beginPath();
-        // Use fillColor if strokeColor is transparent/missing, because we save selected color to fillColor by default
         ctx.strokeStyle = (shape.strokeColor !== 'transparent' && shape.strokeColor) ? shape.strokeColor : (shape.fillColor || '#000000'); 
         ctx.lineWidth = shape.strokeWidth || 4;
         ctx.lineCap = 'round';
@@ -215,8 +240,9 @@ export default function Canvas() {
       // Draw Selection Outline
       if (selectedIds.includes(shape.id)) {
           ctx.save();
-          ctx.strokeStyle = '#3b82f6';
+          ctx.strokeStyle = shape.isLocked ? '#ef4444' : '#3b82f6'; 
           ctx.lineWidth = 2;
+          
           const padding = 4;
           let bx = shape.x - padding;
           let by = shape.y - padding;
@@ -235,11 +261,20 @@ export default function Canvas() {
           }
 
           ctx.strokeRect(bx, by, bw, bh);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(bx - 3, by - 3, 6, 6);
-          ctx.strokeRect(bx - 3, by - 3, 6, 6);
-          ctx.fillRect(bx + bw - 3, by + bh - 3, 6, 6);
-          ctx.strokeRect(bx + bw - 3, by + bh - 3, 6, 6);
+          
+          if (!shape.isLocked) {
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(bx - 3, by - 3, 6, 6);
+              ctx.strokeRect(bx - 3, by - 3, 6, 6);
+              ctx.fillRect(bx + bw - 3, by + bh - 3, 6, 6);
+              ctx.strokeRect(bx + bw - 3, by + bh - 3, 6, 6);
+          } else {
+              ctx.fillStyle = '#ef4444';
+              ctx.beginPath();
+              ctx.arc(bx, by, 4, 0, Math.PI*2);
+              ctx.fill();
+          }
+          
           ctx.restore();
       }
     });
@@ -299,6 +334,7 @@ export default function Canvas() {
     ctx.restore();
   }, [shapes, tempShape, currentTool, currentColor, selectedIds, selectionBox]);
 
+  // ... (drawing loop, render) ...
   // Drawing Loop (Strokes)
   const drawStrokes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { x, y, zoom } = useCameraStore.getState();
@@ -369,13 +405,71 @@ export default function Canvas() {
     } 
     else if (tool === 'SELECT') {
         const hitResult = hitTest(worldPos.x, worldPos.y);
+        
         if (hitResult) {
-            if (!selectedIds.includes(hitResult.id)) {
-                if (e.shiftKey) setSelectedIds([...selectedIds, hitResult.id]);
-                else setSelectedIds([hitResult.id]);
+            const clickedObj = findObject(hitResult.id);
+            let idsToSelect = [hitResult.id];
+
+            // Auto-select group members
+            if (clickedObj && clickedObj.groupId) {
+                const groupMembers = [
+                    ...shapes.filter(s => s.groupId === clickedObj.groupId).map(s => s.id),
+                    ...memos.filter(m => m.groupId === clickedObj.groupId).map(m => m.id),
+                    ...images.filter(i => i.groupId === clickedObj.groupId).map(i => i.id)
+                ];
+                idsToSelect = groupMembers;
             }
-            isMovingObjects.current = true;
-            lastMousePos.current = { x: worldPos.x, y: worldPos.y };
+
+            if (e.shiftKey) {
+                // Toggle / Add
+                const newSelection = [...new Set([...selectedIds, ...idsToSelect])];
+                setSelectedIds(newSelection);
+            } else {
+                // Check if we are clicking on an item that is ALREADY in the selection (part of a group move)
+                // If yes, KEEP selection (don't reset). 
+                // If no, reset selection to this new group.
+                
+                // Are ANY of the idsToSelect already selected? (Usually check the hitId)
+                const isHitAlreadySelected = selectedIds.includes(hitResult.id);
+                
+                if (!isHitAlreadySelected) {
+                    setSelectedIds(idsToSelect);
+                }
+                // Else: keep current selection (allows moving the whole group without re-selecting)
+            }
+            
+            // Check Lock for moving
+            const objectsToMove = (e.shiftKey || selectedIds.includes(hitResult.id)) 
+                ? selectedIds 
+                : idsToSelect;
+            
+            // If we decided to keep selection (isHitAlreadySelected), we move selectedIds.
+            // If we changed selection, we move idsToSelect (which is now selectedIds).
+            // Actually, state update is async, so better rely on logic:
+            
+            // Wait, if !isHitAlreadySelected, we called setSelectedIds(idsToSelect). 
+            // In this render cycle, selectedIds is OLD. 
+            // So we must rely on our calculated ids.
+            
+            const targetIds = (e.shiftKey || selectedIds.includes(hitResult.id)) ? selectedIds : idsToSelect;
+            // Actually, if I just clicked a NEW group, targetIds should be idsToSelect.
+            // Logic correction:
+            const effectiveSelection = e.shiftKey 
+                ? [...new Set([...selectedIds, ...idsToSelect])]
+                : (selectedIds.includes(hitResult.id) ? selectedIds : idsToSelect);
+
+            const hasLocked = effectiveSelection.some(id => {
+                const obj = findObject(id);
+                return obj?.isLocked;
+            });
+
+            if (!hasLocked) {
+                isMovingObjects.current = true;
+                lastMousePos.current = { x: worldPos.x, y: worldPos.y };
+            } else {
+                console.log("Locked object selected. Move prevented.");
+            }
+
         } else {
             if (!e.shiftKey) setSelectedIds([]);
             isSelecting.current = true;
@@ -473,10 +567,8 @@ export default function Canvas() {
                 y: tempShape.y,
                 width: tempShape.width,
                 height: tempShape.height,
-                // For Arrow, we use fillColor slot to store the main color, 
-                // and renderer will use it as stroke. 
                 fillColor: color, 
-                strokeColor: isArrow ? color : 'transparent', // Explicitly set stroke for arrow if needed
+                strokeColor: isArrow ? color : 'transparent',
                 strokeWidth: isArrow ? 4 : 0
             });
         }

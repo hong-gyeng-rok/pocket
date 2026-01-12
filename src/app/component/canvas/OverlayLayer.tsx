@@ -4,6 +4,7 @@ import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import MemoComponent from "@/app/component/memo/Memo";
 import ImageComponent from "@/app/component/image/ImageComponent";
+import SelectionMenu from "@/app/component/canvas/SelectionMenu";
 
 export default function OverlayLayer() {
   const memos = useCanvasStore((state) => state.memos);
@@ -38,6 +39,9 @@ export default function OverlayLayer() {
         {memos.map((memo) => (
           <MemoComponent key={memo.id} memo={memo} />
         ))}
+        
+        {/* Context Menu for Selection */}
+        <SelectionMenu />
       </div>
     </div>
   );

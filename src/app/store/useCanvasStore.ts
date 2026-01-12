@@ -24,6 +24,8 @@ export interface Memo {
   width: number;
   height: number;
   color: string;
+  groupId?: string;
+  isLocked?: boolean;
 }
 
 export interface ImageElement {
@@ -34,6 +36,8 @@ export interface ImageElement {
   width: number;
   height: number;
   alt?: string;
+  groupId?: string;
+  isLocked?: boolean;
 }
 
 export interface Shape {
@@ -46,16 +50,18 @@ export interface Shape {
   fillColor: string;
   strokeColor: string;
   strokeWidth: number;
-  text?: string; // 도형 안의 텍스트 또는 텍스트 객체 내용
+  text?: string; 
   textColor?: string;
+  groupId?: string;
+  isLocked?: boolean;
 }
 
 interface CanvasState {
   strokes: Stroke[];
-  memos: Memo[]; // Legacy support (can be migrated to shapes later)
+  memos: Memo[]; 
   images: ImageElement[];
   shapes: Shape[];
-  selectedIds: string[]; // List of selected object IDs
+  selectedIds: string[]; 
   
   // Actions
   addStroke: (stroke: Stroke) => void;
@@ -67,6 +73,11 @@ interface CanvasState {
   setSelectedIds: (ids: string[]) => void;
   addSelectedId: (id: string) => void;
   clearSelection: () => void;
+  
+  // Grouping & Locking Actions
+  groupObjects: (ids: string[]) => void;
+  ungroupObjects: (ids: string[]) => void;
+  toggleLock: (ids: string[]) => void;
   
   // Memo Actions
   addMemo: (memo: Memo) => void;
@@ -114,6 +125,27 @@ export const useCanvasStore = create<CanvasState>()(
       })),
       
       clearSelection: () => set({ selectedIds: [] }),
+
+      groupObjects: (ids) => set((state) => {
+        const newGroupId = crypto.randomUUID();
+        return {
+          shapes: state.shapes.map(s => ids.includes(s.id) ? { ...s, groupId: newGroupId } : s),
+          memos: state.memos.map(m => ids.includes(m.id) ? { ...m, groupId: newGroupId } : m),
+          images: state.images.map(i => ids.includes(i.id) ? { ...i, groupId: newGroupId } : i),
+        };
+      }),
+
+      ungroupObjects: (ids) => set((state) => ({
+        shapes: state.shapes.map(s => ids.includes(s.id) ? { ...s, groupId: undefined } : s),
+        memos: state.memos.map(m => ids.includes(m.id) ? { ...m, groupId: undefined } : m),
+        images: state.images.map(i => ids.includes(i.id) ? { ...i, groupId: undefined } : i),
+      })),
+
+      toggleLock: (ids) => set((state) => ({
+        shapes: state.shapes.map(s => ids.includes(s.id) ? { ...s, isLocked: !s.isLocked } : s),
+        memos: state.memos.map(m => ids.includes(m.id) ? { ...m, isLocked: !m.isLocked } : m),
+        images: state.images.map(i => ids.includes(i.id) ? { ...i, isLocked: !i.isLocked } : i),
+      })),
 
       addMemo: (memo) => set((state) => ({
         memos: [...state.memos, memo]
