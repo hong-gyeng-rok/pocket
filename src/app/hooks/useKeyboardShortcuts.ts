@@ -6,25 +6,36 @@ export const useKeyboardShortcuts = () => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   
   // Get undo/redo from temporal store
-  // useCanvasStore.temporal is a hook that gives access to the temporal state
-  const { undo, redo } = useCanvasStore((state) => (useCanvasStore as any).temporal.getState());
+  const temporal = (useCanvasStore as any).temporal;
+  const undo = temporal ? temporal.getState().undo : () => {};
+  const redo = temporal ? temporal.getState().redo : () => {};
   
-  const { setTool, setColor, color } = useToolStore();
+  const { setTool, setMode, mode, setColor, color } = useToolStore();
 
-  const colors = ["#000000", "#EF4444", "#3B82F6"];
+  const colors = [
+    "#000000", "#ffffff", "#FECACA", "#FED7AA", "#FEF08A", "#BBF7D0", "#BFDBFE", "#E9D5FF", "#FBCFE8"
+  ];
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Spacebar
-      if (e.code === 'Space' && !isSpacePressed) {
-        // Only trigger if not typing in a textarea
-        if (document.activeElement?.tagName !== 'TEXTAREA') {
-          e.preventDefault();
-          setIsSpacePressed(true);
-        }
+      // Ignore inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement).isContentEditable) {
+        return;
       }
 
-      // Ctrl shortcuts
+      // Space
+      if (e.code === 'Space' && !isSpacePressed) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
+
+      // Tab (Mode Toggle)
+      if (e.key === 'Tab') {
+          e.preventDefault();
+          setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
+      }
+
+      // Ctrl Shortcuts
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
           case 'z':
@@ -35,22 +46,36 @@ export const useKeyboardShortcuts = () => {
             e.preventDefault();
             redo();
             break;
-          case 'e':
-            e.preventDefault();
-            setTool('ERASER');
-            break;
-          case 'd': // Changed from 'p' to 'd' for easier access
-            e.preventDefault();
-            setTool('PEN');
-            break;
-          case 'c':
-            e.preventDefault();
-            // Cycle color
-            const currentIndex = colors.indexOf(color);
-            const nextIndex = (currentIndex + 1) % colors.length;
-            setColor(colors[nextIndex]);
-            break;
+          // Ctrl+C is Copy (handled in Canvas), don't use here
         }
+      } else {
+          // Single Key Shortcuts
+          const key = e.key.toLowerCase();
+          
+          // Color Cycle (C)
+          if (key === 'c') {
+              const currentIndex = colors.indexOf(color);
+              let nextIndex = 0;
+              if (currentIndex !== -1) {
+                  nextIndex = (currentIndex + 1) % colors.length;
+              }
+              setColor(colors[nextIndex]);
+          }
+
+          // Tool Switching
+          if (mode === 'DRAWING') {
+              if (key === 'p') setTool('PEN');
+              if (key === 'e') setTool('ERASER');
+              if (key === 'h') setTool('HAND');
+              if (key === 'v') setTool('SELECT');
+          } else {
+              if (key === 'v') setTool('SELECT');
+              if (key === 'h') setTool('HAND');
+              if (key === 'r') setTool('RECTANGLE');
+              if (key === 'o') setTool('CIRCLE');
+              if (key === 'a') setTool('ARROW');
+              if (key === 't') setTool('TEXT');
+          }
       }
     };
 
@@ -62,12 +87,12 @@ export const useKeyboardShortcuts = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isSpacePressed, undo, redo, setTool, setColor, color, colors]);
+  }, [mode, isSpacePressed, undo, redo, setTool, setMode, setColor, color]);
 
   return { isSpacePressed };
 };

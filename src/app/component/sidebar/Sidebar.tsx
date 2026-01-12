@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { getCanvases, createCanvas } from "@/app/actions/canvas";
 import { useRouter } from "next/navigation";
+import SidebarItem from "./SidebarItem";
 
 interface CanvasItem {
   id: string;
@@ -52,7 +53,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 h-screen bg-gray-50 border-r border-gray-200 flex flex-col">
+    <aside className="w-64 h-screen bg-gray-50 border-r border-gray-200 flex flex-col shrink-0">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <h1 className="text-xl font-bold text-gray-800">Pocket</h1>
@@ -70,18 +71,14 @@ export default function Sidebar() {
         <div className="px-3 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
           Recent
         </div>
-        <ul>
+        <ul className="space-y-0.5">
           {canvases.map((canvas) => (
-            <li key={canvas.id}>
-              <button
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors truncate"
-                onClick={() => {
-                   router.push(`/canvas/${canvas.id}`);
-                }}
-              >
-                {canvas.title || formatDateTitle(canvas.createdAt)}
-              </button>
-            </li>
+            <SidebarItem 
+              key={canvas.id} 
+              canvas={canvas} 
+              formatDateTitle={formatDateTitle}
+              onUpdate={fetchCanvases}
+            />
           ))}
         </ul>
       </div>

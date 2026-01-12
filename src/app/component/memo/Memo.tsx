@@ -121,6 +121,7 @@ export default function MemoComponent({ memo }: MemoProps) {
         onMouseDown={(e) => e.stopPropagation()} 
         placeholder="Type something..."
         style={{ fontSize: '14px' }}
+        autoFocus={!memo.content}
       />
       
       {/* Resize Handle */}

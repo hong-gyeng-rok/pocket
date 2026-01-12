@@ -55,12 +55,18 @@ interface CanvasState {
   memos: Memo[]; // Legacy support (can be migrated to shapes later)
   images: ImageElement[];
   shapes: Shape[];
+  selectedIds: string[]; // List of selected object IDs
   
   // Actions
   addStroke: (stroke: Stroke) => void;
   setStrokes: (strokes: Stroke[]) => void;
   clearStrokes: () => void;
   removeStroke: (id: string) => void;
+  
+  // Selection Actions
+  setSelectedIds: (ids: string[]) => void;
+  addSelectedId: (id: string) => void;
+  clearSelection: () => void;
   
   // Memo Actions
   addMemo: (memo: Memo) => void;
@@ -87,6 +93,7 @@ export const useCanvasStore = create<CanvasState>()(
       memos: [],
       images: [],
       shapes: [],
+      selectedIds: [],
 
       addStroke: (stroke) => set((state) => ({
         strokes: [...state.strokes, stroke]
@@ -99,6 +106,14 @@ export const useCanvasStore = create<CanvasState>()(
       removeStroke: (id) => set((state) => ({
         strokes: state.strokes.filter((s) => s.id !== id)
       })),
+
+      setSelectedIds: (ids) => set({ selectedIds: ids }),
+      
+      addSelectedId: (id) => set((state) => ({
+        selectedIds: state.selectedIds.includes(id) ? state.selectedIds : [...state.selectedIds, id]
+      })),
+      
+      clearSelection: () => set({ selectedIds: [] }),
 
       addMemo: (memo) => set((state) => ({
         memos: [...state.memos, memo]

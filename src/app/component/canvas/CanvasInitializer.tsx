@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
-import { saveCanvas } from "@/app/actions/canvas";
 import CanvasLayout from "@/app/layout/canvasLayout";
 
 interface CanvasInitializerProps {
@@ -16,62 +15,98 @@ export default function CanvasInitializer({
   initialContent,
   title,
 }: CanvasInitializerProps) {
-  const { setStrokes, strokes, memos, images } = useCanvasStore();
-  const isInitialized = useRef(false); // 초기화 여부 추적
+  const { setStrokes, strokes, memos, images, shapes } = useCanvasStore();
+  const isInitialized = useRef(false); 
   
-  // 1. 초기 데이터 로드 (마운트 시 한 번만, 또는 canvasId가 바뀔 때)
+  // 1. 초기 데이터 로드
   useEffect(() => {
-    isInitialized.current = false; // 캔버스 ID 변경 시 초기화 플래그 리셋
+    isInitialized.current = false;
     if (initialContent) {
-      // DB 데이터 구조에 맞게 복원
       const content = initialContent as any;
+      
+      // Zustand persist rehydration might happen automatically from localStorage.
+      // We need to decide strategy: Server vs Local.
+      // For now, Server wins on page load to ensure sync across devices.
+      // But we could check timestamps if we stored them.
       
       useCanvasStore.setState({
         strokes: content.strokes || [],
         memos: content.memos || [],
         images: content.images || [],
+        shapes: content.shapes || [],
       });
-      // 상태 업데이트 후 약간의 지연 뒤에 초기화 완료 처리 (useEffect 실행 순서 고려)
+      
       setTimeout(() => {
          isInitialized.current = true;
-      }, 100);
+      }, 500); // Slightly longer buffer
     } else {
       isInitialized.current = true;
     }
   }, [canvasId, initialContent]);
 
-  // 2. 자동 저장 (Autosave)
+  // Save Function (Reusable)
+  const saveToBackend = useCallback(async (data: any) => {
+      try {
+          await fetch('/api/canvas/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: canvasId, content: data }),
+              keepalive: true, // Key for saving on close
+          });
+          console.log("Saved to backend");
+      } catch (err) {
+          console.error("Save failed", err);
+      }
+  }, [canvasId]);
+
+  // 2. 자동 저장 (Debounce + Exit Safety)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // 최신 상태를 Ref에 담아두어야 Event Listener 안에서 접근 가능 (Closure 문제 해결)
+  const stateRef = useRef({ strokes, memos, images, shapes });
   useEffect(() => {
-    // 초기화가 아직 안 끝났으면 저장하지 않음
+      stateRef.current = { strokes, memos, images, shapes };
+  }, [strokes, memos, images, shapes]);
+
+  useEffect(() => {
     if (!isInitialized.current) return;
 
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = setTimeout(async () => {
-      const currentContent = {
-        strokes,
-        memos,
-        images,
-      };
-      
-      try {
-        await saveCanvas(canvasId, currentContent);
-        console.log("Canvas auto-saved");
-      } catch (error) {
-        console.error("Auto-save failed:", error);
-      }
-    }, 2000); // 2초 후 저장
+    // Debounce Save (Background sync)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    saveTimeoutRef.current = setTimeout(() => {
+        saveToBackend(stateRef.current);
+    }, 2000);
 
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [strokes, memos, images, canvasId]);
+  }, [strokes, memos, images, shapes, saveToBackend]); // Trigger on change
+
+  // 3. 페이지 종료/숨김 시 즉시 저장 (Safety Net)
+  useEffect(() => {
+      const handleUnload = () => {
+          // Force save current state
+          if (isInitialized.current) {
+             saveToBackend(stateRef.current);
+          }
+      };
+
+      const handleVisibilityChange = () => {
+          if (document.visibilityState === 'hidden' && isInitialized.current) {
+              saveToBackend(stateRef.current);
+          }
+      };
+
+      window.addEventListener('beforeunload', handleUnload);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+          window.removeEventListener('beforeunload', handleUnload);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+  }, [saveToBackend]);
 
   return <CanvasLayout />;
 }
+

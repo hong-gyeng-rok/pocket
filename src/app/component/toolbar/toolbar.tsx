@@ -98,8 +98,14 @@ export default function Toolbar() {
 
   const colors = [
     { name: "Black", value: "#000000" },
-    { name: "Red", value: "#EF4444" },
-    { name: "Blue", value: "#3B82F6" },
+    { name: "White", value: "#ffffff" },
+    { name: "Red", value: "#FECACA" },    // Pastel Red
+    { name: "Orange", value: "#FED7AA" }, // Pastel Orange
+    { name: "Yellow", value: "#FEF08A" }, // Pastel Yellow
+    { name: "Green", value: "#BBF7D0" },  // Pastel Green
+    { name: "Blue", value: "#BFDBFE" },   // Pastel Blue
+    { name: "Purple", value: "#E9D5FF" }, // Pastel Purple
+    { name: "Pink", value: "#FBCFE8" },   // Pastel Pink
   ];
 
   const toggleMode = () => {
@@ -127,9 +133,9 @@ export default function Toolbar() {
           <>
             <Tooltip label="Hand Tool" shortcut="Space">
               <button
-                onClick={() => setTool('NONE')}
+                onClick={() => setTool('HAND')}
                 className={`p-3 rounded-full transition-all ${
-                  tool === 'NONE' 
+                  tool === 'HAND' 
                     ? 'bg-gray-900 text-white shadow-md scale-105' 
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                 }`}
@@ -137,6 +143,21 @@ export default function Toolbar() {
                 <Hand size={20} />
               </button>
             </Tooltip>
+
+            <Tooltip label="Select Tool" shortcut="V">
+              <button
+                onClick={() => setTool('SELECT')}
+                className={`p-3 rounded-full transition-all ${
+                  tool === 'SELECT' 
+                    ? 'bg-gray-900 text-white shadow-md scale-105' 
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+              >
+                <MousePointer2 size={20} />
+              </button>
+            </Tooltip>
+
+            <div className="w-px h-6 bg-gray-200 mx-1" />
 
             <Tooltip label="Pen Tool" shortcut="P">
               <button
@@ -166,11 +187,24 @@ export default function Toolbar() {
           </>
         ) : (
           <>
+            <Tooltip label="Hand Tool" shortcut="Space">
+              <button
+                onClick={() => setTool('HAND')}
+                className={`p-3 rounded-full transition-all ${
+                  tool === 'HAND' 
+                    ? 'bg-gray-900 text-white shadow-md scale-105' 
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+              >
+                <Hand size={20} />
+              </button>
+            </Tooltip>
+
             <Tooltip label="Select Tool" shortcut="V">
               <button
-                onClick={() => setTool('NONE')}
+                onClick={() => setTool('SELECT')}
                 className={`p-3 rounded-full transition-all ${
-                  tool === 'NONE' 
+                  tool === 'SELECT' 
                     ? 'bg-gray-900 text-white shadow-md scale-105' 
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
                 }`}
@@ -178,6 +212,8 @@ export default function Toolbar() {
                 <MousePointer2 size={20} />
               </button>
             </Tooltip>
+
+            <div className="w-px h-6 bg-gray-200 mx-1" />
 
             <Tooltip label="Rectangle" shortcut="R">
               <button
@@ -251,26 +287,35 @@ export default function Toolbar() {
         </Tooltip>
       </div>
 
-      {/* Color Group (Common) */}
+      {/* Color Group */}
       <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
         {colors.map((c) => (
           <Tooltip key={c.value} label={c.name} shortcut="Ctrl + C">
             <button
               onClick={() => {
                   setColor(c.value);
-                  // If switching color in Object mode, maybe don't switch tool, but in Drawing mode, switch to Pen?
-                  // For now, let's keep it simple.
                   if (mode === 'DRAWING' && tool === 'NONE') setTool('PEN');
               }}
-              className={`w-8 h-8 rounded-full border-2 transition-transform ${
+              className={`w-6 h-6 rounded-full border border-gray-200 transition-transform ${
                 color === c.value && tool !== 'ERASER'
-                  ? 'border-gray-900 scale-110 shadow-sm' 
-                  : 'border-transparent hover:scale-105'
+                  ? 'border-gray-900 scale-125 shadow-sm' 
+                  : 'hover:scale-110'
               }`}
               style={{ backgroundColor: c.value }}
             />
           </Tooltip>
         ))}
+        {/* Native Color Picker */}
+        <Tooltip label="Custom Color">
+           <div className="relative w-6 h-6 rounded-full overflow-hidden border border-gray-200 hover:scale-110 transition-transform">
+             <input 
+               type="color" 
+               value={color}
+               onChange={(e) => setColor(e.target.value)}
+               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 border-0 cursor-pointer"
+             />
+           </div>
+        </Tooltip>
       </div>
 
       {/* History Group */}

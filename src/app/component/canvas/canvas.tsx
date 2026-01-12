@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -23,8 +22,17 @@ export default function Canvas() {
 
   const strokes = useCanvasStore((state) => state.strokes);
   const shapes = useCanvasStore((state) => state.shapes);
+  const selectedIds = useCanvasStore((state) => state.selectedIds);
   const addMemo = useCanvasStore((state) => state.addMemo);
   const addShape = useCanvasStore((state) => state.addShape);
+  const removeShape = useCanvasStore((state) => state.removeShape);
+  const setSelectedIds = useCanvasStore((state) => state.setSelectedIds);
+  const updateShape = useCanvasStore((state) => state.updateShape);
+  
+  // Memo related (for selection/deletion integration)
+  const memos = useCanvasStore((state) => state.memos);
+  const removeMemo = useCanvasStore((state) => state.removeMemo);
+  const moveMemo = useCanvasStore((state) => state.moveMemo);
 
   const { isSpacePressed } = useKeyboardShortcuts();
   const requestRef = useRef<number>(0);
@@ -32,13 +40,47 @@ export default function Canvas() {
   const lastMousePos = useRef({ x: 0, y: 0 });
   const currentMousePos = useRef<{ x: number, y: number } | null>(null);
 
-  // Shape Creation Ref
+  // Interaction Refs
   const isCreatingShape = useRef(false);
   const shapeStartPos = useRef({ x: 0, y: 0 });
   const [tempShape, setTempShape] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
 
+  const isSelecting = useRef(false);
+  const selectionStartPos = useRef({ x: 0, y: 0 });
+  const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
+  
+  const isMovingObjects = useRef(false);
+  const copiedShapes = useRef<any[]>([]); 
 
-  // Coordinate conversion: Screen -> World
+  // Helper: Get Mouse Position relative to Canvas Element
+  const getMousePos = (e: React.MouseEvent) => {
+    if (!canvasRef.current) return { x: e.clientX, y: e.clientY };
+    const rect = canvasRef.current.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+  };
+
+  // Helper: Round Rect Path
+  const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+    ctx.beginPath();
+    if ("roundRect" in ctx) {
+        // @ts-ignore
+        ctx.roundRect(x, y, w, h, r);
+    } else {
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+  };
+
+  // Coordinate conversion: Screen (Canvas Relative) -> World
   const screenToWorld = useCallback((screenX: number, screenY: number) => {
     const { x, y, zoom } = useCameraStore.getState();
     return {
@@ -46,6 +88,71 @@ export default function Canvas() {
       y: y + screenY / zoom
     };
   }, []);
+
+  // Helper: Hit Test (Includes Memos)
+  const hitTest = (x: number, y: number): { id: string, type: 'SHAPE' | 'MEMO' } | null => {
+      // Check shapes (reverse order)
+      for (let i = shapes.length - 1; i >= 0; i--) {
+          const s = shapes[i];
+          const minX = Math.min(s.x, s.x + s.width);
+          const maxX = Math.max(s.x, s.x + s.width);
+          const minY = Math.min(s.y, s.y + s.height);
+          const maxY = Math.max(s.y, s.y + s.height);
+          if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+              return { id: s.id, type: 'SHAPE' };
+          }
+      }
+      // Check memos
+      for (let i = memos.length - 1; i >= 0; i--) {
+          const m = memos[i];
+          if (x >= m.x && x <= m.x + m.width && y >= m.y && y <= m.y + m.height) {
+              return { id: m.id, type: 'MEMO' };
+          }
+      }
+      return null;
+  };
+
+  // Keyboard Shortcuts (Delete, Copy, Paste)
+  useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+          if (e.key === 'Delete' || e.key === 'Backspace') {
+              selectedIds.forEach(id => {
+                  if (shapes.some(s => s.id === id)) removeShape(id);
+                  if (memos.some(m => m.id === id)) removeMemo(id);
+              });
+              setSelectedIds([]);
+          }
+
+          if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+              const shapesToCopy = shapes.filter(s => selectedIds.includes(s.id));
+              if (shapesToCopy.length > 0) {
+                  copiedShapes.current = shapesToCopy;
+              }
+          }
+
+          if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+              if (copiedShapes.current.length > 0) {
+                  const newIds: string[] = [];
+                  copiedShapes.current.forEach(shape => {
+                      const newId = crypto.randomUUID();
+                      addShape({
+                          ...shape,
+                          id: newId,
+                          x: shape.x + 20,
+                          y: shape.y + 20
+                      });
+                      newIds.push(newId);
+                  });
+                  setSelectedIds(newIds);
+              }
+          }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds, shapes, memos, removeShape, removeMemo, addShape, setSelectedIds]);
 
   // Use Drawing Hook
   const {
@@ -57,7 +164,7 @@ export default function Canvas() {
     renderStroke
   } = useDrawing(screenToWorld);
 
-  // Draw Shapes
+  // Draw Shapes & Selection UI
   const drawShapes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { x, y, zoom } = useCameraStore.getState();
 
@@ -67,15 +174,13 @@ export default function Canvas() {
 
     // 1. Draw Saved Shapes
     shapes.forEach(shape => {
-      ctx.beginPath();
-      ctx.lineWidth = shape.strokeWidth || 2;
-      ctx.strokeStyle = shape.strokeColor || '#000000';
-      ctx.fillStyle = shape.fillColor || 'transparent'; // 나중에 채우기 지원 시
-
+      ctx.fillStyle = shape.fillColor || 'transparent';
+      
       if (shape.type === 'RECTANGLE') {
-        ctx.rect(shape.x, shape.y, shape.width, shape.height);
-        ctx.stroke();
+        roundRectPath(ctx, shape.x, shape.y, shape.width, shape.height, 12);
+        ctx.fill();
       } else if (shape.type === 'CIRCLE') {
+        ctx.beginPath();
         ctx.ellipse(
             shape.x + shape.width / 2, 
             shape.y + shape.height / 2, 
@@ -83,11 +188,16 @@ export default function Canvas() {
             Math.abs(shape.height) / 2, 
             0, 0, 2 * Math.PI
         );
-        ctx.stroke();
+        ctx.fill();
       } else if (shape.type === 'ARROW') {
-        // Simple arrow logic (Start to End)
-        // shape.x,y is start, width/height acts as vector to end
-        const headLen = 15;
+        ctx.beginPath();
+        // Use fillColor if strokeColor is transparent/missing, because we save selected color to fillColor by default
+        ctx.strokeStyle = (shape.strokeColor !== 'transparent' && shape.strokeColor) ? shape.strokeColor : (shape.fillColor || '#000000'); 
+        ctx.lineWidth = shape.strokeWidth || 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        const headLen = 20;
         const endX = shape.x + shape.width;
         const endY = shape.y + shape.height;
         const dx = endX - shape.x;
@@ -101,18 +211,51 @@ export default function Canvas() {
         ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI / 6), endY - headLen * Math.sin(angle + Math.PI / 6));
         ctx.stroke();
       }
+
+      // Draw Selection Outline
+      if (selectedIds.includes(shape.id)) {
+          ctx.save();
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          const padding = 4;
+          let bx = shape.x - padding;
+          let by = shape.y - padding;
+          let bw = shape.width + padding * 2;
+          let bh = shape.height + padding * 2;
+          
+          if (shape.type === 'ARROW' || shape.width < 0 || shape.height < 0) {
+             const minX = Math.min(shape.x, shape.x + shape.width);
+             const minY = Math.min(shape.y, shape.y + shape.height);
+             const maxX = Math.max(shape.x, shape.x + shape.width);
+             const maxY = Math.max(shape.y, shape.y + shape.height);
+             bx = minX - padding;
+             by = minY - padding;
+             bw = maxX - minX + padding * 2;
+             bh = maxY - minY + padding * 2;
+          }
+
+          ctx.strokeRect(bx, by, bw, bh);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(bx - 3, by - 3, 6, 6);
+          ctx.strokeRect(bx - 3, by - 3, 6, 6);
+          ctx.fillRect(bx + bw - 3, by + bh - 3, 6, 6);
+          ctx.strokeRect(bx + bw - 3, by + bh - 3, 6, 6);
+          ctx.restore();
+      }
     });
 
     // 2. Draw Temp Shape (Dragging)
     if (isCreatingShape.current && tempShape) {
-       ctx.beginPath();
+       ctx.fillStyle = currentColor + '80';
        ctx.strokeStyle = currentColor;
-       ctx.lineWidth = 2;
-       
+       ctx.lineWidth = 1;
+
        if (currentTool === 'RECTANGLE') {
-           ctx.rect(tempShape.x, tempShape.y, tempShape.width, tempShape.height);
+           roundRectPath(ctx, tempShape.x, tempShape.y, tempShape.width, tempShape.height, 12);
+           ctx.fill();
            ctx.stroke();
        } else if (currentTool === 'CIRCLE') {
+           ctx.beginPath();
            ctx.ellipse(
                tempShape.x + tempShape.width / 2,
                tempShape.y + tempShape.height / 2,
@@ -120,15 +263,19 @@ export default function Canvas() {
                Math.abs(tempShape.height) / 2,
                0, 0, 2 * Math.PI
            );
+           ctx.fill();
            ctx.stroke();
        } else if (currentTool === 'ARROW') {
-           const headLen = 15;
+           ctx.beginPath();
+           ctx.strokeStyle = currentColor;
+           ctx.lineWidth = 4;
+           ctx.lineCap = 'round';
+           const headLen = 20;
            const endX = tempShape.x + tempShape.width;
            const endY = tempShape.y + tempShape.height;
            const dx = endX - tempShape.x;
            const dy = endY - tempShape.y;
            const angle = Math.atan2(dy, dx);
-
            ctx.moveTo(tempShape.x, tempShape.y);
            ctx.lineTo(endX, endY);
            ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI / 6), endY - headLen * Math.sin(angle - Math.PI / 6));
@@ -138,131 +285,145 @@ export default function Canvas() {
        }
     }
 
+    // 3. Draw Selection Box
+    if (isSelecting.current && selectionBox) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1;
+        ctx.fillRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+        ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+        ctx.restore();
+    }
+
     ctx.restore();
-  }, [shapes, tempShape, currentTool, currentColor]);
+  }, [shapes, tempShape, currentTool, currentColor, selectedIds, selectionBox]);
 
-
-  // Drawing Loop
+  // Drawing Loop (Strokes)
   const drawStrokes = useCallback((ctx: CanvasRenderingContext2D) => {
-    // Direct store access
     const { x, y, zoom } = useCameraStore.getState();
-
     ctx.save();
     ctx.scale(zoom, zoom);
     ctx.translate(-x, -y);
-
-    // 1. Draw already finished strokes
     strokes.forEach(stroke => renderStroke(ctx, stroke));
-
-    // 2. Draw currently drawing stroke
     if (isDrawing.current && currentStrokePoints.current.length > 1) {
       const toolState = useToolStore.getState();
       renderStroke(ctx, {
         points: currentStrokePoints.current,
         color: toolState.color,
         size: toolState.strokeWidth,
-        tool: toolState.tool as any // Type assertion needed as tool can be RECTANGLE etc
+        tool: toolState.tool as any
       });
     }
-
     ctx.restore();
   }, [strokes, isDrawing, currentStrokePoints, renderStroke]);
 
-  // Background Drawing Logic
-  const drawBackground = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-  }, []);
-
-  // Render Single Frame
+  // Render Frame
   const render = useCallback(() => {
     const context = contextRef.current;
     if (!context || size.width === 0 || size.height === 0) return;
-
-    // Clear Screen
     context.clearRect(0, 0, size.width, size.height);
-
-    // Draw Background
-    drawBackground(context, size.width, size.height);
-
-    // Draw Strokes (World Coordinates)
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, size.width, size.height);
     drawStrokes(context);
-    
-    // Draw Shapes
     drawShapes(context);
 
-    // Draw Custom Cursor (Screen Coordinates)
     const toolState = useToolStore.getState();
-    // Only show custom cursor if space is NOT pressed (meaning we are not in temporary pan mode)
-    if (currentMousePos.current && toolState.tool !== 'NONE' && !isSpacePressed) {
+    if (currentMousePos.current && toolState.tool !== 'HAND' && toolState.tool !== 'SELECT' && !isSpacePressed) {
       const { x, y } = currentMousePos.current;
-      const { color, strokeWidth, tool } = toolState;
-
       context.save();
       context.beginPath();
-
-      if (tool === 'PEN') {
-        context.fillStyle = color;
-        const radius = Math.max(strokeWidth / 2, 2);
+      if (toolState.tool === 'PEN') {
+        context.fillStyle = toolState.color;
+        const radius = Math.max(toolState.strokeWidth / 2, 2);
         context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
-      } else if (tool === 'ERASER') {
+      } else if (toolState.tool === 'ERASER') {
         context.strokeStyle = '#000000';
         context.lineWidth = 1;
-        const radius = 10;
-        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.arc(x, y, 10, 0, Math.PI * 2);
         context.stroke();
       }
-
       context.restore();
     }
-  }, [contextRef, size, drawBackground, drawStrokes, drawShapes, isSpacePressed]);
+  }, [contextRef, size, drawStrokes, drawShapes, isSpacePressed]);
 
-  // Start Loop
   useEffect(() => {
     const loop = () => {
       render();
       requestRef.current = requestAnimationFrame(loop);
     };
-
     requestRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestRef.current);
   }, [render]);
 
-
   // Event Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     const tool = useToolStore.getState().tool;
-    const worldPos = screenToWorld(e.clientX, e.clientY);
+    const { x: mouseX, y: mouseY } = getMousePos(e);
+    const worldPos = screenToWorld(mouseX, mouseY);
 
-    // If Space is pressed OR current tool is NONE, do Panning
-    if (isSpacePressed || tool === 'NONE') {
+    if (isSpacePressed || tool === 'HAND') {
       isDragging.current = true;
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      lastMousePos.current = { x: e.clientX, y: e.clientY }; 
     } 
+    else if (tool === 'SELECT') {
+        const hitResult = hitTest(worldPos.x, worldPos.y);
+        if (hitResult) {
+            if (!selectedIds.includes(hitResult.id)) {
+                if (e.shiftKey) setSelectedIds([...selectedIds, hitResult.id]);
+                else setSelectedIds([hitResult.id]);
+            }
+            isMovingObjects.current = true;
+            lastMousePos.current = { x: worldPos.x, y: worldPos.y };
+        } else {
+            if (!e.shiftKey) setSelectedIds([]);
+            isSelecting.current = true;
+            selectionStartPos.current = { x: worldPos.x, y: worldPos.y };
+            setSelectionBox({ x: worldPos.x, y: worldPos.y, width: 0, height: 0 });
+        }
+    }
     else if (['RECTANGLE', 'CIRCLE', 'ARROW'].includes(tool)) {
       isCreatingShape.current = true;
       shapeStartPos.current = { x: worldPos.x, y: worldPos.y };
       setTempShape({ x: worldPos.x, y: worldPos.y, width: 0, height: 0 });
     }
-    else if (tool === 'TEXT') {
-        // Text creation logic (click to add) handled in MouseUp or separate handler
-    }
-    else {
-      startDrawing(e.clientX, e.clientY);
+    else if (['PEN', 'ERASER'].includes(tool)) {
+      startDrawing(mouseX, mouseY);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    currentMousePos.current = { x: e.clientX, y: e.clientY };
-    const worldPos = screenToWorld(e.clientX, e.clientY);
+    const { x: mouseX, y: mouseY } = getMousePos(e);
+    const worldPos = screenToWorld(mouseX, mouseY);
+    currentMousePos.current = { x: mouseX, y: mouseY };
 
     if (isDragging.current) {
       const dx = e.clientX - lastMousePos.current.x;
       const dy = e.clientY - lastMousePos.current.y;
       pan(dx, dy);
       lastMousePos.current = { x: e.clientX, y: e.clientY };
-    } 
+    }
+    else if (isMovingObjects.current) {
+       const dx = worldPos.x - lastMousePos.current.x;
+       const dy = worldPos.y - lastMousePos.current.y;
+       selectedIds.forEach(id => {
+           const shape = shapes.find(s => s.id === id);
+           if (shape) updateShape(id, { x: shape.x + dx, y: shape.y + dy });
+           const memo = memos.find(m => m.id === id);
+           if (memo) moveMemo(id, memo.x + dx, memo.y + dy);
+       });
+       lastMousePos.current = { x: worldPos.x, y: worldPos.y };
+    }
+    else if (isSelecting.current) {
+        const currentBox = {
+            x: Math.min(selectionStartPos.current.x, worldPos.x),
+            y: Math.min(selectionStartPos.current.y, worldPos.y),
+            width: Math.abs(worldPos.x - selectionStartPos.current.x),
+            height: Math.abs(worldPos.y - selectionStartPos.current.y)
+        };
+        setSelectionBox(currentBox);
+    }
     else if (isCreatingShape.current) {
         setTempShape({
             x: shapeStartPos.current.x,
@@ -272,7 +433,7 @@ export default function Canvas() {
         });
     }
     else {
-      continueDrawing(e.clientX, e.clientY);
+      continueDrawing(mouseX, mouseY);
     }
   };
 
@@ -280,36 +441,61 @@ export default function Canvas() {
     const tool = useToolStore.getState().tool;
     const color = useToolStore.getState().color;
 
-    if (isCreatingShape.current && tempShape) {
-        if (Math.abs(tempShape.width) > 5 || Math.abs(tempShape.height) > 5) { // Prevent tiny accidental shapes
+    if (isMovingObjects.current) {
+        isMovingObjects.current = false;
+    }
+    else if (isSelecting.current && selectionBox) {
+        const newSelectedIds = [
+            ...shapes.filter(s => (
+                s.x < selectionBox.x + selectionBox.width &&
+                s.x + s.width > selectionBox.x &&
+                s.y < selectionBox.y + selectionBox.height &&
+                s.y + s.height > selectionBox.y
+            )).map(s => s.id),
+            ...memos.filter(m => (
+                m.x < selectionBox.x + selectionBox.width &&
+                m.x + m.width > selectionBox.x &&
+                m.y < selectionBox.y + selectionBox.height &&
+                m.y + m.height > selectionBox.y
+            )).map(m => m.id)
+        ];
+        setSelectedIds(newSelectedIds);
+        isSelecting.current = false;
+        setSelectionBox(null);
+    }
+    else if (isCreatingShape.current && tempShape) {
+        if (Math.abs(tempShape.width) > 5 || Math.abs(tempShape.height) > 5) {
+            const isArrow = tool === 'ARROW';
             addShape({
                 id: crypto.randomUUID(),
-                type: tool as 'RECTANGLE' | 'CIRCLE', // Arrow is also handled but TS might complain
+                type: tool as any,
                 x: tempShape.x,
                 y: tempShape.y,
                 width: tempShape.width,
                 height: tempShape.height,
-                fillColor: 'transparent',
-                strokeColor: color,
-                strokeWidth: 2
+                // For Arrow, we use fillColor slot to store the main color, 
+                // and renderer will use it as stroke. 
+                fillColor: color, 
+                strokeColor: isArrow ? color : 'transparent', // Explicitly set stroke for arrow if needed
+                strokeWidth: isArrow ? 4 : 0
             });
         }
         isCreatingShape.current = false;
         setTempShape(null);
     }
-    else if (tool === 'TEXT' && !isDragging.current) { // Click to add text
-         const worldPos = screenToWorld(e.clientX, e.clientY);
-         // For now, create a memo as a text placeholder
+    else if (tool === 'TEXT' && !isDragging.current) {
+         const { x: mouseX, y: mouseY } = getMousePos(e);
+         const worldPos = screenToWorld(mouseX, mouseY);
          addMemo({
             id: crypto.randomUUID(),
-            content: "New Text",
+            content: "",
             x: worldPos.x,
             y: worldPos.y,
-            width: 150,
-            height: 50,
-            color: 'transparent' // Transparent background for text-only feel
+            width: 250,
+            height: 200,
+            color: 'transparent'
          });
-         // Reset tool to NONE or keep TEXT? Usually keep TEXT.
+         useToolStore.getState().setTool('SELECT');
     }
 
     endDrawing();
@@ -317,34 +503,37 @@ export default function Canvas() {
   };
 
   const handleMouseLeave = () => {
-      handleMouseUp({ clientX: 0, clientY: 0 } as any); // Dummy event
+      if (isDragging.current) {
+        endDrawing();
+        isDragging.current = false;
+      }
       currentMousePos.current = null;
   }
 
   const handleDoubleClick = (e: React.MouseEvent) => {
-    // Only in drawing mode or select mode
     const tool = useToolStore.getState().tool;
-    if (tool !== 'NONE' && tool !== 'PEN') return;
-
-    const worldPos = screenToWorld(e.clientX, e.clientY);
-    
+    if (tool !== 'SELECT' && tool !== 'PEN') return;
+    const { x: mouseX, y: mouseY } = getMousePos(e);
+    const worldPos = screenToWorld(mouseX, mouseY);
     addMemo({
         id: crypto.randomUUID(),
         content: "",
-        x: worldPos.x - 100, // Center memo
+        x: worldPos.x - 100,
         y: worldPos.y - 75,
-        width: 200,
-        height: 150,
-        color: "#fef3c7", // Amber-100
+        width: 250,
+        height: 200,
+        color: "#fef3c7",
     });
   };
-    const handleWheel = (e: React.WheelEvent) => {
-    // Determine zoom direction
+
+  const handleWheel = (e: React.WheelEvent) => {
     const zoomSensitivity = 0.001;
     const delta = -e.deltaY * zoomSensitivity;
     const zoomFactor = 1 + delta;
-
-    zoomCamera(zoomFactor, e.clientX, e.clientY);
+    if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        zoomCamera(zoomFactor, e.clientX - rect.left, e.clientY - rect.top);
+    }
   };
 
   return (
@@ -357,15 +546,16 @@ export default function Canvas() {
         onMouseLeave={handleMouseLeave}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
-        className={`block touch-none ${(currentTool === 'NONE' || isSpacePressed)
+        className={`block touch-none ${
+            (currentTool === 'HAND' || isSpacePressed)
             ? 'cursor-grab active:cursor-grabbing'
-            : currentTool === 'TEXT' 
-                ? 'cursor-text'
-                : 'cursor-crosshair'
+            : currentTool === 'SELECT'
+                ? 'cursor-default'
+                : currentTool === 'TEXT' 
+                    ? 'cursor-text'
+                    : 'cursor-crosshair'
           }`}
       />
     </article>
   );
 }
-
-
