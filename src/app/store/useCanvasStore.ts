@@ -24,6 +24,7 @@ export interface Memo {
   width: number;
   height: number;
   color: string;
+  fontSize?: 'sm' | 'm' | 'l' | 'xl';
   groupId?: string;
   isLocked?: boolean;
 }
@@ -40,9 +41,11 @@ export interface ImageElement {
   isLocked?: boolean;
 }
 
+export type HandleType = 'top' | 'right' | 'bottom' | 'left';
+
 export interface Shape {
   id: string;
-  type: 'RECTANGLE' | 'CIRCLE' | 'TEXT';
+  type: 'RECTANGLE' | 'CIRCLE' | 'TEXT' | 'ARROW';
   x: number;
   y: number;
   width: number;
@@ -52,8 +55,15 @@ export interface Shape {
   strokeWidth: number;
   text?: string; 
   textColor?: string;
+  fontSize?: 'sm' | 'm' | 'l' | 'xl';
   groupId?: string;
   isLocked?: boolean;
+  
+  // Arrow specific properties
+  startId?: string; // Connected object ID at start
+  endId?: string;   // Connected object ID at end
+  startHandle?: HandleType;
+  endHandle?: HandleType;
 }
 
 interface CanvasState {
@@ -81,7 +91,7 @@ interface CanvasState {
   
   // Memo Actions
   addMemo: (memo: Memo) => void;
-  updateMemo: (id: string, content: string) => void;
+  updateMemo: (id: string, updates: Partial<Omit<Memo, 'id'>>) => void;
   moveMemo: (id: string, x: number, y: number) => void;
   resizeMemo: (id: string, width: number, height: number) => void;
   removeMemo: (id: string) => void;
@@ -151,13 +161,42 @@ export const useCanvasStore = create<CanvasState>()(
         memos: [...state.memos, memo]
       })),
 
-      updateMemo: (id, content) => set((state) => ({
-        memos: state.memos.map((m) => m.id === id ? { ...m, content } : m)
+      updateMemo: (id, updates) => set((state) => ({
+        memos: state.memos.map((m) => m.id === id ? { ...m, ...updates } : m)
       })),
 
-      moveMemo: (id, x, y) => set((state) => ({
-        memos: state.memos.map((m) => m.id === id ? { ...m, x, y } : m)
-      })),
+      moveMemo: (id, x, y) => set((state) => {
+        const oldMemo = state.memos.find(m => m.id === id);
+        if (!oldMemo) return {};
+
+        const dx = x - oldMemo.x;
+        const dy = y - oldMemo.y;
+
+        return {
+          memos: state.memos.map((m) => m.id === id ? { ...m, x, y } : m),
+          shapes: state.shapes.map(s => {
+             if (s.type === 'ARROW') {
+                 if (s.startId === id) {
+                     return { 
+                         ...s, 
+                         x: s.x + dx, 
+                         y: s.y + dy, 
+                         width: s.width - dx, 
+                         height: s.height - dy 
+                     };
+                 }
+                 if (s.endId === id) {
+                     return { 
+                         ...s, 
+                         width: s.width + dx, 
+                         height: s.height + dy 
+                     };
+                 }
+             }
+             return s;
+          })
+        };
+      }),
 
       resizeMemo: (id, width, height) => set((state) => ({
         memos: state.memos.map((m) => m.id === id ? { ...m, width, height } : m)
@@ -183,9 +222,43 @@ export const useCanvasStore = create<CanvasState>()(
         shapes: [...state.shapes, shape]
       })),
 
-      updateShape: (id, updates) => set((state) => ({
-        shapes: state.shapes.map((s) => s.id === id ? { ...s, ...updates } : s)
-      })),
+      updateShape: (id, updates) => set((state) => {
+        const oldShape = state.shapes.find(s => s.id === id);
+        if (!oldShape) return {};
+
+        const dx = (updates.x !== undefined) ? updates.x - oldShape.x : 0;
+        const dy = (updates.y !== undefined) ? updates.y - oldShape.y : 0;
+
+        const updatedShapes = state.shapes.map((s) => s.id === id ? { ...s, ...updates } : s);
+
+        if (dx !== 0 || dy !== 0) {
+             return {
+                 shapes: updatedShapes.map(s => {
+                     if (s.type === 'ARROW') {
+                         if (s.startId === id) {
+                             return { 
+                                 ...s, 
+                                 x: s.x + dx, 
+                                 y: s.y + dy, 
+                                 width: s.width - dx, 
+                                 height: s.height - dy 
+                             };
+                         }
+                         if (s.endId === id) {
+                             return { 
+                                 ...s, 
+                                 width: s.width + dx, 
+                                 height: s.height + dy 
+                             };
+                         }
+                     }
+                     return s;
+                 })
+             };
+        }
+
+        return { shapes: updatedShapes };
+      }),
 
       removeShape: (id) => set((state) => ({
         shapes: state.shapes.filter((s) => s.id !== id)

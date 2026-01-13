@@ -12,7 +12,8 @@ export const useKeyboardShortcuts = () => {
   
   const { setTool, setMode, mode, setColor, color } = useToolStore();
 
-  const colors = [
+  const drawingColors = ["#000000", "#ef4444", "#3b82f6"];
+  const objectColors = [
     "#000000", "#ffffff", "#FECACA", "#FED7AA", "#FEF08A", "#BBF7D0", "#BFDBFE", "#E9D5FF", "#FBCFE8"
   ];
 
@@ -54,17 +55,23 @@ export const useKeyboardShortcuts = () => {
           
           // Color Cycle (C)
           if (key === 'c') {
-              const currentIndex = colors.indexOf(color);
+              const activeColors = mode === 'DRAWING' ? drawingColors : objectColors;
+              const currentIndex = activeColors.indexOf(color);
               let nextIndex = 0;
+              
               if (currentIndex !== -1) {
-                  nextIndex = (currentIndex + 1) % colors.length;
+                  nextIndex = (currentIndex + 1) % activeColors.length;
+              } else {
+                  // If current color is not in the active palette (e.g. custom color or switched mode),
+                  // start from the beginning (Black)
+                  nextIndex = 0;
               }
-              setColor(colors[nextIndex]);
+              setColor(activeColors[nextIndex]);
           }
 
           // Tool Switching
           if (mode === 'DRAWING') {
-              if (key === 'p') setTool('PEN');
+              if (key === 'd') setTool('PEN');
               if (key === 'e') setTool('ERASER');
               if (key === 'h') setTool('HAND');
               if (key === 'v') setTool('SELECT');

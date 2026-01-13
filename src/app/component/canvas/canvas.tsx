@@ -25,9 +25,13 @@ export default function Canvas() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const addMemo = useCanvasStore((state) => state.addMemo);
   const addShape = useCanvasStore((state) => state.addShape);
+  const addImage = useCanvasStore((state) => state.addImage);
   const removeShape = useCanvasStore((state) => state.removeShape);
+  const removeStroke = useCanvasStore((state) => state.removeStroke);
   const setSelectedIds = useCanvasStore((state) => state.setSelectedIds);
   const updateShape = useCanvasStore((state) => state.updateShape);
+  const updateImage = useCanvasStore((state) => state.updateImage);
+  const removeImage = useCanvasStore((state) => state.removeImage);
   
   // Grouping & Locking Actions
   const groupObjects = useCanvasStore((state) => state.groupObjects);
@@ -51,12 +55,31 @@ export default function Canvas() {
   const shapeStartPos = useRef({ x: 0, y: 0 });
   const [tempShape, setTempShape] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
 
+  const isResizingShape = useRef(false);
+  const resizingShapeId = useRef<string | null>(null);
+  const resizeAnchor = useRef({ x: 0, y: 0 }); // The fixed opposite corner (Visual Top-Left)
+  const [isHoveringResizeHandle, setIsHoveringResizeHandle] = useState(false);
+
   const isSelecting = useRef(false);
   const selectionStartPos = useRef({ x: 0, y: 0 });
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   
   const isMovingObjects = useRef(false);
   const copiedShapes = useRef<any[]>([]); 
+
+  // Hover Handles (Quick Connect)
+  const [hoverHandles, setHoverHandles] = useState<{ id: string, objectId: string, x: number, y: number }[]>([]);
+  const isCreatingArrow = useRef(false); // Creating arrow from handle
+  const arrowStartHandle = useRef<{ id: string, objectId: string, x: number, y: number } | null>(null);
+  const [tempArrow, setTempArrow] = useState<{ x1: number, y1: number, x2: number, y2: number } | null>(null);
+  const snapTarget = useRef<{ id: string, objectId: string, x: number, y: number } | null>(null); // To store snap handle
+  const historyPaused = useRef(false);
+  
+  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  // Refs for Event Handlers (to avoid re-binding effect)
+  const handleMouseMoveRef = useRef<(e: React.MouseEvent) => void>(() => {});
+  const handleMouseUpRef = useRef<(e: React.MouseEvent) => void>(() => {});
 
   // Helper: Get Mouse Position relative to Canvas Element
   const getMousePos = (e: React.MouseEvent) => {
@@ -96,7 +119,8 @@ export default function Canvas() {
   }, []);
 
   // Helper: Find object by ID (generic)
-  const findObject = (id: string) => {
+  const findObject = useCallback((id: string) => {
+      const { shapes, memos, images } = useCanvasStore.getState();
       const s = shapes.find(s => s.id === id);
       if (s) return { ...s, _type: 'SHAPE' };
       const m = memos.find(m => m.id === id);
@@ -104,13 +128,15 @@ export default function Canvas() {
       const i = images.find(i => i.id === id);
       if (i) return { ...i, _type: 'IMAGE' };
       return null;
-  };
+  }, []);
 
-  // Helper: Hit Test (Includes Memos)
-  const hitTest = (x: number, y: number): { id: string, type: 'SHAPE' | 'MEMO' } | null => {
+  // Helper: Hit Test (Includes Memos & Images)
+  const hitTest = useCallback((x: number, y: number, ignoreArrows = false): { id: string, type: 'SHAPE' | 'MEMO' | 'IMAGE' } | null => {
+      const { shapes, memos, images } = useCanvasStore.getState();
       // Check shapes (reverse order)
       for (let i = shapes.length - 1; i >= 0; i--) {
           const s = shapes[i];
+          if (ignoreArrows && s.type === 'ARROW') continue;
           const minX = Math.min(s.x, s.x + s.width);
           const maxX = Math.max(s.x, s.x + s.width);
           const minY = Math.min(s.y, s.y + s.height);
@@ -126,59 +152,95 @@ export default function Canvas() {
               return { id: m.id, type: 'MEMO' };
           }
       }
+      // Check images
+      for (let i = images.length - 1; i >= 0; i--) {
+          const img = images[i];
+          if (x >= img.x && x <= img.x + img.width && y >= img.y && y <= img.y + img.height) {
+              return { id: img.id, type: 'IMAGE' };
+          }
+      }
       return null;
-  };
+  }, []);
+
+  // Helper: Calculate Object Handles
+  const getObjectHandles = useCallback((obj: any) => {
+      if (!obj) return [];
+      const { x, y, width, height, id } = obj;
+      // Handles: top, right, bottom, left
+      // Padding ensures handles are slightly outside
+      const padding = 10;
+      return [
+          { id: 'top', objectId: id, x: x + width / 2, y: y - padding },
+          { id: 'right', objectId: id, x: x + width + padding, y: y + height / 2 },
+          { id: 'bottom', objectId: id, x: x + width / 2, y: y + height + padding },
+          { id: 'left', objectId: id, x: x - padding, y: y + height / 2 },
+      ];
+  }, []);
 
   // Keyboard Shortcuts (Delete, Copy, Paste)
+  const handleKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => {});
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+          const hasLocked = selectedIds.some(id => {
+              const obj = findObject(id);
+              return obj?.isLocked;
+          });
+          if (hasLocked) {
+              console.log("Cannot delete locked objects");
+              return;
+          }
+
+          selectedIds.forEach(id => {
+              if (shapes.some(s => s.id === id)) removeShape(id);
+              if (memos.some(m => m.id === id)) removeMemo(id);
+              if (images.some(i => i.id === id)) removeImage(id);
+              if (strokes.some(s => s.id === id)) removeStroke(id);
+          });
+          setSelectedIds([]);
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+          const objectsToCopy = [
+              ...shapes.filter(s => selectedIds.includes(s.id)),
+              ...memos.filter(m => selectedIds.includes(m.id)),
+              ...images.filter(i => selectedIds.includes(i.id))
+          ];
+          if (objectsToCopy.length > 0) {
+              copiedShapes.current = objectsToCopy;
+          }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+          if (copiedShapes.current.length > 0) {
+              const newIds: string[] = [];
+              copiedShapes.current.forEach(obj => {
+                  const newId = crypto.randomUUID();
+                  const offset = { x: obj.x + 20, y: obj.y + 20 };
+                  
+                  if ('src' in obj) {
+                      addImage({ ...obj, ...offset, id: newId });
+                  } else if ('content' in obj) {
+                      addMemo({ ...obj, ...offset, id: newId });
+                  } else {
+                      addShape({ ...obj, ...offset, id: newId });
+                  }
+                  newIds.push(newId);
+              });
+              setSelectedIds(newIds);
+          }
+      }
+  };
+
+  handleKeyDownRef.current = handleKeyDown;
+
   useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-          if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-          if (e.key === 'Delete' || e.key === 'Backspace') {
-              const hasLocked = selectedIds.some(id => {
-                  const obj = findObject(id);
-                  return obj?.isLocked;
-              });
-              if (hasLocked) {
-                  console.log("Cannot delete locked objects");
-                  return;
-              }
-
-              selectedIds.forEach(id => {
-                  if (shapes.some(s => s.id === id)) removeShape(id);
-                  if (memos.some(m => m.id === id)) removeMemo(id);
-              });
-              setSelectedIds([]);
-          }
-
-          if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-              const shapesToCopy = shapes.filter(s => selectedIds.includes(s.id));
-              if (shapesToCopy.length > 0) {
-                  copiedShapes.current = shapesToCopy;
-              }
-          }
-
-          if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-              if (copiedShapes.current.length > 0) {
-                  const newIds: string[] = [];
-                  copiedShapes.current.forEach(shape => {
-                      const newId = crypto.randomUUID();
-                      addShape({
-                          ...shape,
-                          id: newId,
-                          x: shape.x + 20,
-                          y: shape.y + 20
-                      });
-                      newIds.push(newId);
-                  });
-                  setSelectedIds(newIds);
-              }
-          }
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, shapes, memos, removeShape, removeMemo, addShape, setSelectedIds]);
+      const handler = (e: KeyboardEvent) => handleKeyDownRef.current(e);
+      window.addEventListener('keydown', handler);
+      return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Use Drawing Hook
   const {
@@ -190,7 +252,56 @@ export default function Canvas() {
     renderStroke
   } = useDrawing(screenToWorld);
 
-  // Draw Shapes & Selection UI
+  // Draw Images (Layer 4 - Bottom)
+  const drawImages = useCallback((ctx: CanvasRenderingContext2D) => {
+      const { images, selectedIds } = useCanvasStore.getState();
+      const { x, y, zoom } = useCameraStore.getState();
+
+      ctx.save();
+      ctx.scale(zoom, zoom);
+      ctx.translate(-x, -y);
+
+      images.forEach(img => {
+          let imageObj = imageCache.current.get(img.src);
+          if (!imageObj) {
+              imageObj = new Image();
+              imageObj.src = img.src;
+              imageObj.onload = () => {
+                  // Trigger re-render (handled by loop)
+              };
+              imageCache.current.set(img.src, imageObj);
+          }
+
+          if (imageObj.complete) {
+              ctx.drawImage(imageObj, img.x, img.y, img.width, img.height);
+          }
+
+          // Draw Selection Outline for Images
+          if (selectedIds.includes(img.id)) {
+              ctx.save();
+              ctx.strokeStyle = img.isLocked ? '#ef4444' : '#3b82f6'; 
+              ctx.lineWidth = 2;
+              const padding = 4;
+              const bx = img.x - padding;
+              const by = img.y - padding;
+              const bw = img.width + padding * 2;
+              const bh = img.height + padding * 2;
+              
+              ctx.strokeRect(bx, by, bw, bh);
+
+              // Resize Handle (Bottom-Right)
+              if (!img.isLocked) {
+                  ctx.fillStyle = '#ffffff';
+                  ctx.fillRect(bx + bw - 3, by + bh - 3, 6, 6);
+                  ctx.strokeRect(bx + bw - 3, by + bh - 3, 6, 6);
+              }
+              ctx.restore();
+          }
+      });
+      ctx.restore();
+  }, []);
+
+  // Draw Shapes & Selection UI (Layer 3)
   const drawShapes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { x, y, zoom } = useCameraStore.getState();
 
@@ -222,18 +333,29 @@ export default function Canvas() {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
+        // Smart Arrow Logic
+        let sx = shape.x;
+        let sy = shape.y;
+        let ex = shape.x + shape.width; // Default if not connected
+        let ey = shape.y + shape.height;
+
+        // If connected, update coords dynamically (in render loop for smoothness)
+        // Note: For best performance, we should update store, but render-time calc is smoother for drag.
+        // However, updating store is better for persistence. 
+        // Here we just render. 
+        
+        // Actually, we use x,y,w,h from store. If sticky logic updates store, this is fine.
+        
         const headLen = 20;
-        const endX = shape.x + shape.width;
-        const endY = shape.y + shape.height;
-        const dx = endX - shape.x;
-        const dy = endY - shape.y;
+        const dx = ex - sx;
+        const dy = ey - sy;
         const angle = Math.atan2(dy, dx);
         
-        ctx.moveTo(shape.x, shape.y);
-        ctx.lineTo(endX, endY);
-        ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI / 6), endY - headLen * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI / 6), endY - headLen * Math.sin(angle + Math.PI / 6));
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+        ctx.lineTo(ex - headLen * Math.cos(angle - Math.PI / 6), ey - headLen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - headLen * Math.cos(angle + Math.PI / 6), ey - headLen * Math.sin(angle + Math.PI / 6));
         ctx.stroke();
       }
 
@@ -279,7 +401,7 @@ export default function Canvas() {
       }
     });
 
-    // 2. Draw Temp Shape (Dragging)
+    // 2. Draw Temp Shape
     if (isCreatingShape.current && tempShape) {
        ctx.fillStyle = currentColor + '80';
        ctx.strokeStyle = currentColor;
@@ -331,17 +453,64 @@ export default function Canvas() {
         ctx.restore();
     }
 
-    ctx.restore();
-  }, [shapes, tempShape, currentTool, currentColor, selectedIds, selectionBox]);
+    // 4. Draw Hover Handles
+    if (hoverHandles.length > 0) {
+        hoverHandles.forEach(h => {
+            ctx.beginPath();
+            ctx.fillStyle = '#3b82f6'; // Blue
+            ctx.arc(h.x, h.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+            // Optional: Plus icon inside?
+        });
+    }
 
-  // ... (drawing loop, render) ...
-  // Drawing Loop (Strokes)
+    // 5. Draw Temp Arrow (Ghost Arrow)
+    if (isCreatingArrow.current && tempArrow) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#000000'; // Ghost arrow black
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        
+        const headLen = 20;
+        const dx = tempArrow.x2 - tempArrow.x1;
+        const dy = tempArrow.y2 - tempArrow.y1;
+        const angle = Math.atan2(dy, dx);
+        
+        ctx.moveTo(tempArrow.x1, tempArrow.y1);
+        ctx.lineTo(tempArrow.x2, tempArrow.y2);
+        ctx.lineTo(tempArrow.x2 - headLen * Math.cos(angle - Math.PI / 6), tempArrow.y2 - headLen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(tempArrow.x2, tempArrow.y2);
+        ctx.lineTo(tempArrow.x2 - headLen * Math.cos(angle + Math.PI / 6), tempArrow.y2 - headLen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+    }
+
+    ctx.restore();
+  }, [shapes, tempShape, currentTool, currentColor, selectedIds, selectionBox, hoverHandles, tempArrow]);
+
+  // Drawing Loop (Strokes) - Layer 2 (Top)
   const drawStrokes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { x, y, zoom } = useCameraStore.getState();
     ctx.save();
     ctx.scale(zoom, zoom);
     ctx.translate(-x, -y);
-    strokes.forEach(stroke => renderStroke(ctx, stroke));
+    strokes.forEach(stroke => {
+        // Draw Selection Highlight
+        if (selectedIds.includes(stroke.id)) {
+             ctx.save();
+             ctx.strokeStyle = '#3b82f6'; // Selection Blue
+             ctx.lineWidth = stroke.size + 4; // Wider than original
+             ctx.lineCap = 'round';
+             ctx.lineJoin = 'round';
+             ctx.beginPath();
+             if (stroke.points.length > 0) {
+                ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+                stroke.points.forEach(p => ctx.lineTo(p.x, p.y));
+             }
+             ctx.stroke();
+             ctx.restore();
+        }
+        renderStroke(ctx, stroke);
+    });
     if (isDrawing.current && currentStrokePoints.current.length > 1) {
       const toolState = useToolStore.getState();
       renderStroke(ctx, {
@@ -352,7 +521,7 @@ export default function Canvas() {
       });
     }
     ctx.restore();
-  }, [strokes, isDrawing, currentStrokePoints, renderStroke]);
+  }, [strokes, isDrawing, currentStrokePoints, renderStroke, selectedIds]);
 
   // Render Frame
   const render = useCallback(() => {
@@ -361,8 +530,14 @@ export default function Canvas() {
     context.clearRect(0, 0, size.width, size.height);
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, size.width, size.height);
-    drawStrokes(context);
+    
+    // Layer Priority Order:
+    // 1. Images (Bottom)
+    drawImages(context);
+    // 2. Shapes
     drawShapes(context);
+    // 3. Strokes (Pen) - Top
+    drawStrokes(context);
 
     const toolState = useToolStore.getState();
     if (currentMousePos.current && toolState.tool !== 'HAND' && toolState.tool !== 'SELECT' && !isSpacePressed) {
@@ -382,7 +557,7 @@ export default function Canvas() {
       }
       context.restore();
     }
-  }, [contextRef, size, drawStrokes, drawShapes, isSpacePressed]);
+  }, [contextRef, size, drawImages, drawShapes, drawStrokes, isSpacePressed]);
 
   useEffect(() => {
     const loop = () => {
@@ -398,6 +573,57 @@ export default function Canvas() {
     const tool = useToolStore.getState().tool;
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
+
+    // 1. Check Handle Click first (Priority)
+    // Are we clicking on a visible hover handle?
+    // We need to check distance to hoverHandles
+    // Since hoverHandles are in World Coordinates (calculated below in MouseMove), we check dist.
+    
+    const clickedHandle = hoverHandles.find(h => {
+        const dist = Math.sqrt(Math.pow(h.x - worldPos.x, 2) + Math.pow(h.y - worldPos.y, 2));
+        return dist <= 20; // Increased padding for easier clicking (was 10)
+    });
+
+    if (clickedHandle) {
+        // Start creating arrow
+        isCreatingShape.current = false; // Safety
+        isCreatingArrow.current = true;
+        arrowStartHandle.current = clickedHandle;
+        setTempArrow({ x1: clickedHandle.x, y1: clickedHandle.y, x2: worldPos.x, y2: worldPos.y });
+        return; // Stop other interactions
+    }
+
+    // Check Resize Handle (Only if in Select mode and something is selected)
+    if (tool === 'SELECT' && selectedIds.length > 0) {
+        for (const id of selectedIds) {
+            const obj = findObject(id);
+            // Allow resize for Rect/Circle and Image.
+            if (!obj || obj.isLocked) continue;
+            if (obj._type === 'SHAPE' && obj.type === 'ARROW') continue;
+            if (obj._type === 'MEMO') continue; // Memos have their own handles
+
+            // Calculate Visual Bounds
+            const minX = Math.min(obj.x, obj.x + obj.width);
+            const minY = Math.min(obj.y, obj.y + obj.height);
+            const maxX = Math.max(obj.x, obj.x + obj.width);
+            const maxY = Math.max(obj.y, obj.y + obj.height);
+
+            const padding = 4;
+            // Handle is at visual bottom-right of selection box
+            const handleX = maxX + padding;
+            const handleY = maxY + padding;
+            
+            // Check Hit (8px radius)
+            const dist = Math.hypot(handleX - worldPos.x, handleY - worldPos.y);
+            if (dist <= 8) {
+                isResizingShape.current = true;
+                resizingShapeId.current = id;
+                // Anchor is the Visual Top-Left. 
+                resizeAnchor.current = { x: minX, y: minY };
+                return;
+            }
+        }
+    }
 
     if (isSpacePressed || tool === 'HAND') {
       isDragging.current = true;
@@ -421,39 +647,15 @@ export default function Canvas() {
             }
 
             if (e.shiftKey) {
-                // Toggle / Add
                 const newSelection = [...new Set([...selectedIds, ...idsToSelect])];
                 setSelectedIds(newSelection);
             } else {
-                // Check if we are clicking on an item that is ALREADY in the selection (part of a group move)
-                // If yes, KEEP selection (don't reset). 
-                // If no, reset selection to this new group.
-                
-                // Are ANY of the idsToSelect already selected? (Usually check the hitId)
-                const isHitAlreadySelected = selectedIds.includes(hitResult.id);
-                
-                if (!isHitAlreadySelected) {
+                const isAlreadySelected = selectedIds.includes(hitResult.id);
+                if (!isAlreadySelected) {
                     setSelectedIds(idsToSelect);
                 }
-                // Else: keep current selection (allows moving the whole group without re-selecting)
             }
             
-            // Check Lock for moving
-            const objectsToMove = (e.shiftKey || selectedIds.includes(hitResult.id)) 
-                ? selectedIds 
-                : idsToSelect;
-            
-            // If we decided to keep selection (isHitAlreadySelected), we move selectedIds.
-            // If we changed selection, we move idsToSelect (which is now selectedIds).
-            // Actually, state update is async, so better rely on logic:
-            
-            // Wait, if !isHitAlreadySelected, we called setSelectedIds(idsToSelect). 
-            // In this render cycle, selectedIds is OLD. 
-            // So we must rely on our calculated ids.
-            
-            const targetIds = (e.shiftKey || selectedIds.includes(hitResult.id)) ? selectedIds : idsToSelect;
-            // Actually, if I just clicked a NEW group, targetIds should be idsToSelect.
-            // Logic correction:
             const effectiveSelection = e.shiftKey 
                 ? [...new Set([...selectedIds, ...idsToSelect])]
                 : (selectedIds.includes(hitResult.id) ? selectedIds : idsToSelect);
@@ -466,10 +668,7 @@ export default function Canvas() {
             if (!hasLocked) {
                 isMovingObjects.current = true;
                 lastMousePos.current = { x: worldPos.x, y: worldPos.y };
-            } else {
-                console.log("Locked object selected. Move prevented.");
             }
-
         } else {
             if (!e.shiftKey) setSelectedIds([]);
             isSelecting.current = true;
@@ -487,10 +686,62 @@ export default function Canvas() {
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
     currentMousePos.current = { x: mouseX, y: mouseY };
+
+    // Update Hover Handles (Only if not dragging/creating)
+    if (!isDragging.current && !isCreatingShape.current && !isSelecting.current && !isMovingObjects.current && !isCreatingArrow.current && !isResizingShape.current) {
+        const hitResult = hitTest(worldPos.x, worldPos.y, true);
+        const { selectedIds } = useCanvasStore.getState();
+        
+        // Check Resize Handle Hover
+        let hoveringResize = false;
+        if (selectedIds.length > 0) {
+             for (const id of selectedIds) {
+                const obj = findObject(id);
+                if (!obj || obj.isLocked) continue;
+                if (obj._type === 'SHAPE' && obj.type === 'ARROW') continue;
+                if (obj._type === 'MEMO') continue; 
+                
+                const minX = Math.min(obj.x, obj.x + obj.width);
+                const minY = Math.min(obj.y, obj.y + obj.height);
+                const maxX = Math.max(obj.x, obj.x + obj.width);
+                const maxY = Math.max(obj.y, obj.y + obj.height);
+                const padding = 4;
+                const handleX = maxX + padding;
+                const handleY = maxY + padding;
+                
+                if (Math.hypot(handleX - worldPos.x, handleY - worldPos.y) <= 8) {
+                    hoveringResize = true;
+                    break;
+                }
+             }
+        }
+        setIsHoveringResizeHandle(hoveringResize);
+
+        // Find object under mouse with padding for handle visibility
+        let targetObj = null;
+        if (hitResult) {
+            targetObj = findObject(hitResult.id);
+        }
+        
+        let keepHandles = false;
+        if (hoverHandles.length > 0) {
+             const isOverHandle = hoverHandles.some(h => {
+                 const dist = Math.sqrt(Math.pow(h.x - worldPos.x, 2) + Math.pow(h.y - worldPos.y, 2));
+                 return dist <= 25; 
+             });
+             if (isOverHandle) keepHandles = true;
+        }
+
+        if (targetObj) {
+            setHoverHandles(getObjectHandles(targetObj));
+        } else if (!keepHandles) {
+            setHoverHandles([]);
+        }
+    }
 
     if (isDragging.current) {
       const dx = e.clientX - lastMousePos.current.x;
@@ -498,16 +749,117 @@ export default function Canvas() {
       pan(dx, dy);
       lastMousePos.current = { x: e.clientX, y: e.clientY };
     }
+    else if (isResizingShape.current && resizingShapeId.current) {
+        // Resize Logic
+        const obj = findObject(resizingShapeId.current);
+        if (obj) {
+            const newWidth = worldPos.x - resizeAnchor.current.x;
+            const newHeight = worldPos.y - resizeAnchor.current.y;
+            
+            if (obj._type === 'IMAGE') {
+                // Maintain Aspect Ratio for Images
+                // We use the aspect ratio from the *original* object state?
+                // Or current?
+                // Ideally, we should have stored aspect ratio on drag start.
+                // But for now, let's just calculate from current newWidth and try to match?
+                // No, we need original ratio. 
+                // Since `obj` is fresh from store (if using findObject inside render/callback correctly), 
+                // but resizing updates store every frame. So `obj` changes.
+                // Aspect ratio `obj.width / obj.height` should remain constant if we update correctly.
+                const ratio = obj.width / obj.height;
+                // Use Width to drive Height? Or whichever is larger?
+                // Simple: Drive by Width.
+                const fixedHeight = newWidth / ratio;
+                
+                updateImage(obj.id, {
+                    x: resizeAnchor.current.x,
+                    y: resizeAnchor.current.y,
+                    width: newWidth,
+                    height: fixedHeight
+                });
+            } else {
+                updateShape(resizingShapeId.current, {
+                    x: resizeAnchor.current.x,
+                    y: resizeAnchor.current.y,
+                    width: newWidth,
+                    height: newHeight
+                });
+            }
+
+            if (!historyPaused.current) {
+                useCanvasStore.temporal.getState().pause();
+                historyPaused.current = true;
+            }
+        }
+    }
     else if (isMovingObjects.current) {
+       const { shapes, memos, images, selectedIds } = useCanvasStore.getState();
        const dx = worldPos.x - lastMousePos.current.x;
        const dy = worldPos.y - lastMousePos.current.y;
+       
        selectedIds.forEach(id => {
            const shape = shapes.find(s => s.id === id);
-           if (shape) updateShape(id, { x: shape.x + dx, y: shape.y + dy });
            const memo = memos.find(m => m.id === id);
-           if (memo) moveMemo(id, memo.x + dx, memo.y + dy);
+           const image = images.find(i => i.id === id); 
+
+           if (shape) {
+               updateShape(id, { x: shape.x + dx, y: shape.y + dy });
+           } else if (memo) {
+               moveMemo(id, memo.x + dx, memo.y + dy);
+           } else if (image) {
+               updateImage(id, { x: image.x + dx, y: image.y + dy });
+           }
        });
        lastMousePos.current = { x: worldPos.x, y: worldPos.y };
+
+       if (!historyPaused.current) {
+           useCanvasStore.temporal.getState().pause();
+           historyPaused.current = true;
+       }
+    }
+    else if (isCreatingArrow.current && tempArrow && arrowStartHandle.current) {
+        // Dragging arrow
+        const hitResult = hitTest(worldPos.x, worldPos.y, true);
+        let targetX = worldPos.x;
+        let targetY = worldPos.y;
+        let foundSnap = false;
+
+        if (hitResult && hitResult.id !== arrowStartHandle.current.objectId) {
+            const obj = findObject(hitResult.id);
+            if (obj) {
+                const handles = getObjectHandles(obj);
+                // Find closest handle
+                let closest = handles[0];
+                let minD = Infinity;
+                handles.forEach(h => {
+                     const d = Math.hypot(h.x - worldPos.x, h.y - worldPos.y);
+                     if (d < minD) {
+                         minD = d;
+                         closest = h;
+                     }
+                });
+                
+                if (closest) {
+                    setHoverHandles([closest]); // Show blue circle
+                    targetX = closest.x;
+                    targetY = closest.y;
+                    snapTarget.current = closest;
+                    foundSnap = true;
+                }
+            }
+        }
+        
+        if (!foundSnap) {
+            setHoverHandles([]);
+            snapTarget.current = null;
+        }
+
+        setTempArrow({ 
+            x1: arrowStartHandle.current.x, 
+            y1: arrowStartHandle.current.y, 
+            x2: targetX, 
+            y2: targetY 
+        });
     }
     else if (isSelecting.current) {
         const currentBox = {
@@ -529,16 +881,84 @@ export default function Canvas() {
     else {
       continueDrawing(mouseX, mouseY);
     }
-  };
+  }, [screenToWorld, pan, startDrawing, continueDrawing, endDrawing, hitTest, findObject, hoverHandles, tempArrow]);
 
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const tool = useToolStore.getState().tool;
     const color = useToolStore.getState().color;
+    const worldPos = screenToWorld(getMousePos(e).x, getMousePos(e).y); // Need fresh pos
+
+    if (historyPaused.current) {
+        useCanvasStore.temporal.getState().resume();
+        historyPaused.current = false;
+    }
 
     if (isMovingObjects.current) {
         isMovingObjects.current = false;
     }
+    else if (isResizingShape.current) {
+        isResizingShape.current = false;
+        resizingShapeId.current = null;
+    }
+    else if (isCreatingArrow.current && tempArrow && arrowStartHandle.current) {
+        // Finish Arrow Creation
+        let endId = undefined;
+        let endX = worldPos.x;
+        let endY = worldPos.y;
+        
+        // Use snapped target if available
+        if (snapTarget.current) {
+             endId = snapTarget.current.objectId;
+             endX = snapTarget.current.x;
+             endY = snapTarget.current.y;
+        } else {
+            // Check if dropped on a handle or object (fallback)
+            const hitResult = hitTest(worldPos.x, worldPos.y, true);
+            if (hitResult && hitResult.id !== arrowStartHandle.current.objectId) {
+                endId = hitResult.id;
+                const obj = findObject(endId);
+                if (obj) {
+                    const handles = getObjectHandles(obj);
+                    let closestHandle = handles[0];
+                    let minDist = Infinity;
+                    handles.forEach(h => {
+                        const dist = Math.sqrt(Math.pow(h.x - worldPos.x, 2) + Math.pow(h.y - worldPos.y, 2));
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closestHandle = h;
+                        }
+                    });
+                    if (closestHandle) {
+                        endX = closestHandle.x;
+                        endY = closestHandle.y;
+                    }
+                }
+            }
+        }
+
+        // Create Arrow Shape
+        addShape({
+            id: crypto.randomUUID(),
+            type: 'ARROW',
+            x: arrowStartHandle.current.x,
+            y: arrowStartHandle.current.y,
+            width: endX - arrowStartHandle.current.x,
+            height: endY - arrowStartHandle.current.y,
+            fillColor: '#000000', // Default black
+            strokeColor: '#000000',
+            strokeWidth: 4,
+            startId: arrowStartHandle.current.objectId,
+            endId: endId
+        });
+
+        isCreatingArrow.current = false;
+        setTempArrow(null);
+        arrowStartHandle.current = null;
+        snapTarget.current = null;
+        setHoverHandles([]);
+    }
     else if (isSelecting.current && selectionBox) {
+        const { shapes, memos, images, strokes } = useCanvasStore.getState();
         const newSelectedIds = [
             ...shapes.filter(s => (
                 s.x < selectionBox.x + selectionBox.width &&
@@ -551,7 +971,23 @@ export default function Canvas() {
                 m.x + m.width > selectionBox.x &&
                 m.y < selectionBox.y + selectionBox.height &&
                 m.y + m.height > selectionBox.y
-            )).map(m => m.id)
+            )).map(m => m.id),
+            ...images.filter(i => (
+                i.x < selectionBox.x + selectionBox.width &&
+                i.x + i.width > selectionBox.x &&
+                i.y < selectionBox.y + selectionBox.height &&
+                i.y + i.height > selectionBox.y
+            )).map(i => i.id),
+            ...strokes.filter(stroke => {
+                // Simple bounding box check for strokes
+                // Check if any point is inside selection box
+                return stroke.points.some(p => 
+                    p.x >= selectionBox.x && 
+                    p.x <= selectionBox.x + selectionBox.width &&
+                    p.y >= selectionBox.y &&
+                    p.y <= selectionBox.y + selectionBox.height
+                );
+            }).map(s => s.id)
         ];
         setSelectedIds(newSelectedIds);
         isSelecting.current = false;
@@ -592,15 +1028,57 @@ export default function Canvas() {
 
     endDrawing();
     isDragging.current = false;
-  };
+  }, [screenToWorld, getMousePos, hitTest, findObject, getObjectHandles, addShape, setSelectedIds, addMemo, startDrawing, continueDrawing, endDrawing, selectionBox, tempShape, tempArrow, hoverHandles]);
 
   const handleMouseLeave = () => {
       if (isDragging.current) {
         endDrawing();
         isDragging.current = false;
       }
+      if (isResizingShape.current) {
+          isResizingShape.current = false;
+          resizingShapeId.current = null;
+      }
+      if (isCreatingArrow.current) {
+          isCreatingArrow.current = false;
+          setTempArrow(null);
+          arrowStartHandle.current = null;
+          snapTarget.current = null;
+          setHoverHandles([]);
+      }
+      if (historyPaused.current) {
+          useCanvasStore.temporal.getState().resume();
+          historyPaused.current = false;
+      }
       currentMousePos.current = null;
   }
+
+  // Update refs on render
+  handleMouseMoveRef.current = handleMouseMove;
+  handleMouseUpRef.current = handleMouseUp;
+
+  // Global Event Listeners for Interaction (especially over Memos)
+  useEffect(() => {
+      const handleGlobalMouseMove = (e: MouseEvent) => {
+          handleMouseMoveRef.current(e as unknown as React.MouseEvent);
+      };
+      const handleGlobalMouseUp = (e: MouseEvent) => {
+          handleMouseUpRef.current(e as unknown as React.MouseEvent);
+      };
+
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+
+      return () => {
+          window.removeEventListener('mousemove', handleGlobalMouseMove);
+          window.removeEventListener('mouseup', handleGlobalMouseUp);
+          // Safety cleanup
+          if (historyPaused.current) {
+              useCanvasStore.temporal.getState().resume();
+              historyPaused.current = false;
+          }
+      };
+  }, [handleMouseMoveRef, handleMouseUpRef]);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     const tool = useToolStore.getState().tool;
@@ -633,19 +1111,20 @@ export default function Canvas() {
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         className={`block touch-none ${
             (currentTool === 'HAND' || isSpacePressed)
             ? 'cursor-grab active:cursor-grabbing'
-            : currentTool === 'SELECT'
-                ? 'cursor-default'
-                : currentTool === 'TEXT' 
-                    ? 'cursor-text'
-                    : 'cursor-crosshair'
+            : isHoveringResizeHandle
+                ? 'cursor-nwse-resize'
+                : currentTool === 'SELECT'
+                    ? 'cursor-default'
+                    : currentTool === 'TEXT' 
+                        ? 'cursor-text'
+                        : (currentTool === 'PEN' || currentTool === 'ERASER')
+                            ? 'cursor-none'
+                            : 'cursor-default'
           }`}
       />
     </article>

@@ -96,7 +96,13 @@ export default function Toolbar() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const colors = [
+  const drawingColors = [
+    { name: "Black", value: "#000000" },
+    { name: "Red", value: "#ef4444" },
+    { name: "Blue", value: "#3b82f6" },
+  ];
+
+  const objectColors = [
     { name: "Black", value: "#000000" },
     { name: "White", value: "#ffffff" },
     { name: "Red", value: "#FECACA" },    // Pastel Red
@@ -107,6 +113,8 @@ export default function Toolbar() {
     { name: "Purple", value: "#E9D5FF" }, // Pastel Purple
     { name: "Pink", value: "#FBCFE8" },   // Pastel Pink
   ];
+
+  const activeColors = mode === 'DRAWING' ? drawingColors : objectColors;
 
   const toggleMode = () => {
     setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
@@ -159,7 +167,7 @@ export default function Toolbar() {
 
             <div className="w-px h-6 bg-gray-200 mx-1" />
 
-            <Tooltip label="Pen Tool" shortcut="P">
+            <Tooltip label="Pen Tool" shortcut="D">
               <button
                 onClick={() => setTool('PEN')}
                 className={`p-3 rounded-full transition-all ${
@@ -289,7 +297,7 @@ export default function Toolbar() {
 
       {/* Color Group */}
       <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
-        {colors.map((c) => (
+        {activeColors.map((c) => (
           <Tooltip key={c.value} label={c.name} shortcut="Ctrl + C">
             <button
               onClick={() => {

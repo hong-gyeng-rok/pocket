@@ -3,12 +3,10 @@
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import MemoComponent from "@/app/component/memo/Memo";
-import ImageComponent from "@/app/component/image/ImageComponent";
 import SelectionMenu from "@/app/component/canvas/SelectionMenu";
 
 export default function OverlayLayer() {
   const memos = useCanvasStore((state) => state.memos);
-  const images = useCanvasStore((state) => state.images);
   const x = useCameraStore((state) => state.x);
   const y = useCameraStore((state) => state.y);
   const zoom = useCameraStore((state) => state.zoom);
@@ -25,17 +23,14 @@ export default function OverlayLayer() {
         Origin must be top-left (0,0) to match canvas coordinate system.
       */}
       <div
-        className="absolute top-0 left-0 w-full h-full"
+        className="absolute top-0 left-0"
         style={{
           transformOrigin: "0 0",
           transform: `scale(${zoom}) translate(${-x}px, ${-y}px)`,
-          width: '100%', 
-          height: '100%',
+          width: 0, 
+          height: 0,
         }}
       >
-        {images.map((image) => (
-          <ImageComponent key={image.id} image={image} />
-        ))}
         {memos.map((memo) => (
           <MemoComponent key={memo.id} memo={memo} />
         ))}

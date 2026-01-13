@@ -9,12 +9,16 @@ export default function SelectionMenu() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const shapes = useCanvasStore((state) => state.shapes);
   const memos = useCanvasStore((state) => state.memos);
+  const images = useCanvasStore((state) => state.images);
+  const strokes = useCanvasStore((state) => state.strokes);
   
   const groupObjects = useCanvasStore((state) => state.groupObjects);
   const ungroupObjects = useCanvasStore((state) => state.ungroupObjects);
   const toggleLock = useCanvasStore((state) => state.toggleLock);
   const removeShape = useCanvasStore((state) => state.removeShape);
   const removeMemo = useCanvasStore((state) => state.removeMemo);
+  const removeImage = useCanvasStore((state) => state.removeImage);
+  const removeStroke = useCanvasStore((state) => state.removeStroke);
   const setSelectedIds = useCanvasStore((state) => state.setSelectedIds);
 
   const zoom = useCameraStore((state) => state.zoom);
@@ -24,38 +28,68 @@ export default function SelectionMenu() {
     if (selectedIds.length === 0) return null;
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    let hasItems = false;
+    let foundAny = false;
     let lockedCount = 0;
     let groupedCount = 0;
 
     const processItem = (item: any) => {
         if (!item) return;
-        hasItems = true;
-        minX = Math.min(minX, item.x);
-        minY = Math.min(minY, item.y);
-        maxX = Math.max(maxX, item.x + item.width);
-        maxY = Math.max(maxY, item.y + item.height);
+        foundAny = true;
+        
+        const width = item.width || 0;
+        const height = item.height || 0;
+        
+        const x1 = Math.min(item.x, item.x + width);
+        const x2 = Math.max(item.x, item.x + width);
+        const y1 = Math.min(item.y, item.y + height);
+        const y2 = Math.max(item.y, item.y + height);
+
+        minX = Math.min(minX, x1);
+        minY = Math.min(minY, y1);
+        maxX = Math.max(maxX, x2);
+        maxY = Math.max(maxY, y2);
+
         if (item.isLocked) lockedCount++;
         if (item.groupId) groupedCount++;
     };
 
+    const processStroke = (stroke: any) => {
+        if (!stroke || stroke.points.length === 0) return;
+        foundAny = true;
+        stroke.points.forEach((p: any) => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        });
+    };
+
     selectedIds.forEach(id => {
-        processItem(shapes.find(s => s.id === id));
-        processItem(memos.find(m => m.id === id));
+        const shape = shapes.find(s => s.id === id);
+        if (shape) processItem(shape);
+        
+        const memo = memos.find(m => m.id === id);
+        if (memo) processItem(memo);
+        
+        const image = images.find(i => i.id === id);
+        if (image) processItem(image);
+        
+        const stroke = strokes.find(s => s.id === id);
+        if (stroke) processStroke(stroke);
     });
 
-    if (!hasItems) return null;
+    if (!foundAny || minX === Infinity) return null;
 
     return {
         x: minX,
         y: minY,
         width: maxX - minX,
         height: maxY - minY,
-        isAllLocked: lockedCount === selectedIds.length,
-        hasGroup: groupedCount > 0, // Simplified check
-        isMultiple: selectedIds.length > 1
+        isAllLocked: lockedCount === selectedIds.length && lockedCount > 0,
+        hasGroup: groupedCount > 0, 
+        isMultiple: selectedIds.length > 1,
     };
-  }, [selectedIds, shapes, memos]);
+  }, [selectedIds, shapes, memos, images, strokes]);
 
   if (!bounds) return null;
 
@@ -63,21 +97,28 @@ export default function SelectionMenu() {
       selectedIds.forEach(id => {
           if (shapes.some(s => s.id === id)) removeShape(id);
           if (memos.some(m => m.id === id)) removeMemo(id);
+          if (images.some(i => i.id === id)) removeImage(id);
+          if (strokes.some(s => s.id === id)) removeStroke(id);
       });
       setSelectedIds([]);
   };
 
+  // Logic to show group/delete section
+  const showGroup = bounds.isMultiple || bounds.hasGroup;
+  const showDelete = !bounds.isAllLocked;
+  const showRightSection = showGroup || showDelete;
+
   return (
     <div
-      className="absolute flex items-center justify-center pointer-events-auto"
+      className="absolute flex items-center justify-center pointer-events-none"
       style={{
         left: bounds.x + bounds.width / 2,
-        top: bounds.y - 10 / zoom, // Offset slightly above
-        transform: `translate(-50%, -100%) scale(${1 / zoom})`, // Counter-scale to keep UI size constant
-        marginBottom: '10px'
+        top: bounds.y - 15 / zoom, 
+        transform: `translate(-50%, -100%) scale(${1 / zoom})`,
+        zIndex: 1000, 
       }}
     >
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 flex items-center gap-1">
+      <div className="bg-white rounded-lg shadow-2xl border border-gray-200 p-1.5 flex items-center gap-1 pointer-events-auto">
         
         {/* Lock / Unlock */}
         <button
@@ -88,10 +129,11 @@ export default function SelectionMenu() {
           {bounds.isAllLocked ? <Lock size={16} /> : <Unlock size={16} />}
         </button>
 
-        <div className="w-px h-4 bg-gray-200" />
+        {/* Separator only if right section exists */}
+        {showRightSection && <div className="w-px h-4 bg-gray-200" />}
 
-        {/* Group / Ungroup (Only if multiple items or already grouped) */}
-        {(bounds.isMultiple || bounds.hasGroup) && (
+        {/* Group / Ungroup */}
+        {showGroup && (
             <button
                 onClick={() => bounds.hasGroup ? ungroupObjects(selectedIds) : groupObjects(selectedIds)}
                 className="p-2 rounded hover:bg-gray-100 text-gray-700"
@@ -101,10 +143,11 @@ export default function SelectionMenu() {
             </button>
         )}
 
-        {(bounds.isMultiple || bounds.hasGroup) && <div className="w-px h-4 bg-gray-200" />}
+        {/* Separator between Group and Delete if both exist */}
+        {showGroup && showDelete && <div className="w-px h-4 bg-gray-200" />}
 
-        {/* Delete (Only if not locked) */}
-        {!bounds.isAllLocked && (
+        {/* Delete */}
+        {showDelete && (
             <button
                 onClick={handleDelete}
                 className="p-2 rounded hover:bg-red-50 text-red-500"

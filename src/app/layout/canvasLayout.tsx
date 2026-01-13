@@ -5,8 +5,8 @@ import OverlayLayer from "@component/canvas/OverlayLayer"
 export default function CanvasLayout() {
   return (
     <>
-      <OverlayLayer />
       <Canvas />
+      <OverlayLayer />
       <Toolbar />
     </>
   )
