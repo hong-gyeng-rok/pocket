@@ -5,7 +5,7 @@ import { useCanvas } from '@/app/hooks/useCanvas';
 import { useCameraStore } from '@/app/store/useCameraStore';
 import { useDrawing } from '@/app/hooks/useDrawing';
 import { useToolStore } from '@/app/store/useToolStore';
-import { useCanvasStore } from '@/app/store/useCanvasStore';
+import { useCanvasStore, Shape, Memo, ImageElement } from '@/app/store/useCanvasStore';
 import { useKeyboardShortcuts } from '@/app/hooks/useKeyboardShortcuts';
 
 export default function Canvas() {
@@ -65,7 +65,7 @@ export default function Canvas() {
   const [selectionBox, setSelectionBox] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   
   const isMovingObjects = useRef(false);
-  const copiedShapes = useRef<any[]>([]); 
+  const copiedShapes = useRef<(Shape | Memo | ImageElement)[]>([]); 
 
   // Hover Handles (Quick Connect)
   const [hoverHandles, setHoverHandles] = useState<{ id: string, objectId: string, x: number, y: number }[]>([]);
@@ -94,9 +94,10 @@ export default function Canvas() {
   // Helper: Round Rect Path
   const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
     ctx.beginPath();
-    if ("roundRect" in ctx) {
-        // @ts-ignore
-        ctx.roundRect(x, y, w, h, r);
+    // Use 'as any' check to avoid TS narrowing 'ctx' to 'never' in the else block
+    // if the environment TS definitions include 'roundRect' as a required method.
+    if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(x, y, w, h, r);
     } else {
         if (w < 2 * r) r = w / 2;
         if (h < 2 * r) r = h / 2;
@@ -119,7 +120,7 @@ export default function Canvas() {
   }, []);
 
   // Helper: Find object by ID (generic)
-  const findObject = useCallback((id: string) => {
+  const findObject = useCallback((id: string): ((Shape & { _type: 'SHAPE' }) | (Memo & { _type: 'MEMO' }) | (ImageElement & { _type: 'IMAGE' }) | null) => {
       const { shapes, memos, images } = useCanvasStore.getState();
       const s = shapes.find(s => s.id === id);
       if (s) return { ...s, _type: 'SHAPE' };
