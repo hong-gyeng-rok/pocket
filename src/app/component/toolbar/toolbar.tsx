@@ -121,193 +121,276 @@ export default function Toolbar() {
   };
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 p-3 bg-white/90 backdrop-blur-md rounded-full shadow-xl border border-gray-200 z-50">
-      
-      {/* Mode Switcher */}
-      <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
-        <Tooltip label={mode === 'DRAWING' ? "Switch to Object Mode" : "Switch to Drawing Mode"}>
-          <button
-            onClick={toggleMode}
-            className="p-3 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex w-max max-w-[95vw] flex-col items-center gap-y-2 rounded-2xl border border-gray-200 bg-white/90 p-2 shadow-xl backdrop-blur-md md:bottom-8 md:max-w-none md:flex-row md:gap-x-4 md:rounded-full md:p-3">
+      {/* Top Row / Left Side */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 md:gap-x-4">
+        {/* Mode Switcher */}
+        <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-4">
+          <Tooltip
+            label={
+              mode === "DRAWING"
+                ? "Switch to Object Mode"
+                : "Switch to Drawing Mode"
+            }
           >
-            <RefreshCw size={20} className={mode === 'OBJECT' ? "rotate-180 transition-transform" : "transition-transform"} />
-          </button>
-        </Tooltip>
+            <button
+              onClick={toggleMode}
+              className="p-3 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            >
+              <RefreshCw
+                size={20}
+                className={
+                  mode === "OBJECT"
+                    ? "rotate-180 transition-transform"
+                    : "transition-transform"
+                }
+              />
+            </button>
+          </Tooltip>
+        </div>
+
+        {/* Tool Group (Dynamic based on Mode) */}
+        <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-4">
+          {mode === "DRAWING" ? (
+            <>
+              <Tooltip label="Hand Tool" shortcut="Space">
+                <button
+                  onClick={() => setTool("HAND")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "HAND"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Hand size={20} />
+                </button>
+              </Tooltip>
+
+              <Tooltip label="Select Tool" shortcut="V">
+                <button
+                  onClick={() => setTool("SELECT")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "SELECT"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <MousePointer2 size={20} />
+                </button>
+              </Tooltip>
+
+              <div className="w-px h-6 bg-gray-200 mx-1" />
+
+              <Tooltip label="Pen Tool" shortcut="D">
+                <button
+                  onClick={() => setTool("PEN")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "PEN"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Pen size={20} />
+                </button>
+              </Tooltip>
+
+              <Tooltip label="Eraser Tool" shortcut="E">
+                <button
+                  onClick={() => setTool("ERASER")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "ERASER"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Eraser size={20} />
+                </button>
+              </Tooltip>
+            </>
+          ) : (
+            <>
+              <Tooltip label="Hand Tool" shortcut="Space">
+                <button
+                  onClick={() => setTool("HAND")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "HAND"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Hand size={20} />
+                </button>
+              </Tooltip>
+
+              <Tooltip label="Select Tool" shortcut="V">
+                <button
+                  onClick={() => setTool("SELECT")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "SELECT"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <MousePointer2 size={20} />
+                </button>
+              </Tooltip>
+
+              <div className="w-px h-6 bg-gray-200 mx-1" />
+
+              <Tooltip label="Rectangle" shortcut="R">
+                <button
+                  onClick={() => setTool("RECTANGLE")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "RECTANGLE"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Square size={20} />
+                </button>
+              </Tooltip>
+
+              <Tooltip label="Circle" shortcut="O">
+                <button
+                  onClick={() => setTool("CIRCLE")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "CIRCLE"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Circle size={20} />
+                </button>
+              </Tooltip>
+
+              <Tooltip label="Arrow" shortcut="A">
+                <button
+                  onClick={() => setTool("ARROW")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "ARROW"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Minus size={20} className="rotate-45" />
+                </button>
+              </Tooltip>
+
+              <Tooltip label="Text" shortcut="T">
+                <button
+                  onClick={() => setTool("TEXT")}
+                  className={`p-3 rounded-full transition-all ${
+                    tool === "TEXT"
+                      ? "bg-gray-900 text-white shadow-md scale-105"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  }`}
+                >
+                  <Type size={20} />
+                </button>
+              </Tooltip>
+            </>
+          )}
+
+          {/* Image Upload Button (Common) */}
+          <Tooltip label="Add Image">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+            >
+              <ImageIcon size={20} />
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              className="hidden"
+            />
+          </Tooltip>
+        </div>
+
+        {/* History Group */}
+        <div className="flex items-center gap-1 md:border-r md:border-gray-200 md:pr-4">
+          <Tooltip label="Undo" shortcut="Ctrl + Z">
+            <button
+              onClick={handleUndo}
+              disabled={pastStates.length === 0}
+              className={`p-3 rounded-full transition-all ${
+                pastStates.length === 0
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`}
+            >
+              <Undo2 size={20} />
+            </button>
+          </Tooltip>
+
+          <Tooltip label="Redo" shortcut="Ctrl + Y">
+            <button
+              onClick={handleRedo}
+              disabled={futureStates.length === 0}
+              className={`p-3 rounded-full transition-all ${
+                futureStates.length === 0
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`}
+            >
+              <Redo2 size={20} />
+            </button>
+          </Tooltip>
+        </div>
+
+        {/* Auth Group */}
+        <div className="flex items-center md:pl-2">
+          {session ? (
+            <Tooltip label={`Sign out (${session.user?.name})`}>
+              <button
+                onClick={() => signOut()}
+                className="p-1 rounded-full overflow-hidden border-2 border-transparent hover:border-gray-300 transition-all"
+              >
+                {session.user?.image ? (
+                  <img
+                    src={session.user.image}
+                    alt="User Avatar"
+                    className="w-8 h-8 rounded-full"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+                    {session.user?.name?.[0] || "U"}
+                  </div>
+                )}
+              </button>
+            </Tooltip>
+          ) : (
+            <Tooltip label="Sign in with Google">
+              <button
+                onClick={() => signIn("google")}
+                className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+              >
+                <LogIn size={20} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
-      {/* Tool Group (Dynamic based on Mode) */}
-      <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
-        {mode === 'DRAWING' ? (
-          <>
-            <Tooltip label="Hand Tool" shortcut="Space">
-              <button
-                onClick={() => setTool('HAND')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'HAND' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Hand size={20} />
-              </button>
-            </Tooltip>
+      {/* Divider */}
+      <div className="w-full h-px bg-gray-200 md:hidden" />
 
-            <Tooltip label="Select Tool" shortcut="V">
-              <button
-                onClick={() => setTool('SELECT')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'SELECT' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <MousePointer2 size={20} />
-              </button>
-            </Tooltip>
-
-            <div className="w-px h-6 bg-gray-200 mx-1" />
-
-            <Tooltip label="Pen Tool" shortcut="D">
-              <button
-                onClick={() => setTool('PEN')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'PEN' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Pen size={20} />
-              </button>
-            </Tooltip>
-
-            <Tooltip label="Eraser Tool" shortcut="E">
-              <button
-                onClick={() => setTool('ERASER')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'ERASER' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Eraser size={20} />
-              </button>
-            </Tooltip>
-          </>
-        ) : (
-          <>
-            <Tooltip label="Hand Tool" shortcut="Space">
-              <button
-                onClick={() => setTool('HAND')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'HAND' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Hand size={20} />
-              </button>
-            </Tooltip>
-
-            <Tooltip label="Select Tool" shortcut="V">
-              <button
-                onClick={() => setTool('SELECT')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'SELECT' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <MousePointer2 size={20} />
-              </button>
-            </Tooltip>
-
-            <div className="w-px h-6 bg-gray-200 mx-1" />
-
-            <Tooltip label="Rectangle" shortcut="R">
-              <button
-                onClick={() => setTool('RECTANGLE')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'RECTANGLE' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Square size={20} />
-              </button>
-            </Tooltip>
-
-            <Tooltip label="Circle" shortcut="O">
-              <button
-                onClick={() => setTool('CIRCLE')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'CIRCLE' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Circle size={20} />
-              </button>
-            </Tooltip>
-
-             <Tooltip label="Arrow" shortcut="A">
-              <button
-                onClick={() => setTool('ARROW')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'ARROW' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Minus size={20} className="rotate-45" />
-              </button>
-            </Tooltip>
-
-            <Tooltip label="Text" shortcut="T">
-              <button
-                onClick={() => setTool('TEXT')}
-                className={`p-3 rounded-full transition-all ${
-                  tool === 'TEXT' 
-                    ? 'bg-gray-900 text-white shadow-md scale-105' 
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Type size={20} />
-              </button>
-            </Tooltip>
-          </>
-        )}
-
-        {/* Image Upload Button (Common) */}
-        <Tooltip label="Add Image">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
-          >
-            <ImageIcon size={20} />
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            className="hidden"
-          />
-        </Tooltip>
-      </div>
-
-      {/* Color Group */}
-      <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
+      {/* Bottom Row / Right Side */}
+      <div className="flex items-center gap-2">
+        {/* Color Group */}
         {activeColors.map((c) => (
-          <Tooltip key={c.value} label={c.name} shortcut="Ctrl + C">
+          <Tooltip key={c.value} label={c.name}>
             <button
               onClick={() => {
-                  setColor(c.value);
-                  if (mode === 'DRAWING' && tool === 'NONE') setTool('PEN');
+                setColor(c.value);
+                if (mode === "DRAWING" && tool === "NONE") setTool("PEN");
               }}
               className={`w-6 h-6 rounded-full border border-gray-200 transition-transform ${
-                color === c.value && tool !== 'ERASER'
-                  ? 'border-gray-900 scale-125 shadow-sm' 
-                  : 'hover:scale-110'
+                color === c.value && tool !== "ERASER"
+                  ? "border-gray-900 scale-125 shadow-sm"
+                  : "hover:scale-110"
               }`}
               style={{ backgroundColor: c.value }}
             />
@@ -315,75 +398,15 @@ export default function Toolbar() {
         ))}
         {/* Native Color Picker */}
         <Tooltip label="Custom Color">
-           <div className="relative w-6 h-6 rounded-full overflow-hidden border border-gray-200 hover:scale-110 transition-transform">
-             <input 
-               type="color" 
-               value={color}
-               onChange={(e) => setColor(e.target.value)}
-               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 border-0 cursor-pointer"
-             />
-           </div>
+          <div className="relative w-6 h-6 rounded-full overflow-hidden border border-gray-200 hover:scale-110 transition-transform">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 border-0 cursor-pointer"
+            />
+          </div>
         </Tooltip>
-      </div>
-
-      {/* History Group */}
-      <div className="flex items-center gap-1 border-r border-gray-200 pr-4">
-        <Tooltip label="Undo" shortcut="Ctrl + Z">
-          <button
-            onClick={handleUndo}
-            disabled={pastStates.length === 0}
-            className={`p-3 rounded-full transition-all ${
-              pastStates.length === 0
-                ? 'text-gray-300 cursor-not-allowed' 
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            <Undo2 size={20} />
-          </button>
-        </Tooltip>
-
-        <Tooltip label="Redo" shortcut="Ctrl + Y">
-          <button
-            onClick={handleRedo}
-            disabled={futureStates.length === 0}
-            className={`p-3 rounded-full transition-all ${
-              futureStates.length === 0
-                ? 'text-gray-300 cursor-not-allowed' 
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            <Redo2 size={20} />
-          </button>
-        </Tooltip>
-      </div>
-      
-      {/* Auth Group */}
-      <div className="flex items-center pl-2">
-        {session ? (
-           <Tooltip label={`Sign out (${session.user?.name})`}>
-             <button
-               onClick={() => signOut()}
-               className="p-1 rounded-full overflow-hidden border-2 border-transparent hover:border-gray-300 transition-all"
-             >
-               {session.user?.image ? (
-                 <img src={session.user.image} alt="User Avatar" className="w-8 h-8 rounded-full" />
-               ) : (
-                 <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
-                    {session.user?.name?.[0] || 'U'}
-                 </div>
-               )}
-             </button>
-           </Tooltip>
-        ) : (
-          <Tooltip label="Sign in with Google">
-            <button
-              onClick={() => signIn('google')}
-              className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
-            >
-              <LogIn size={20} />
-            </button>
-          </Tooltip>
-        )}
       </div>
     </div>
   );
