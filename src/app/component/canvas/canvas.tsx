@@ -78,8 +78,8 @@ export default function Canvas() {
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // Refs for Event Handlers (to avoid re-binding effect)
-  const handleMouseMoveRef = useRef<(e: React.MouseEvent) => void>(() => { });
-  const handleMouseUpRef = useRef<(e: React.MouseEvent) => void>(() => { });
+  const handleMouseMoveRef = useRef<(e: React.PointerEvent | React.MouseEvent) => void>(() => { });
+  const handleMouseUpRef = useRef<(e: React.PointerEvent | React.MouseEvent) => void>(() => { });
 
   // Helper: Get Mouse Position relative to Canvas Element
   const getMousePos = (e: React.PointerEvent | React.MouseEvent) => {
@@ -1060,19 +1060,19 @@ export default function Canvas() {
 
   // Global Event Listeners for Interaction (especially over Memos)
   useEffect(() => {
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      handleMouseMoveRef.current(e as unknown as React.MouseEvent);
+    const handleGlobalPointerMove = (e: PointerEvent) => {
+      handleMouseMoveRef.current(e as unknown as React.PointerEvent);
     };
-    const handleGlobalMouseUp = (e: MouseEvent) => {
-      handleMouseUpRef.current(e as unknown as React.MouseEvent);
+    const handleGlobalPointerUp = (e: PointerEvent) => {
+      handleMouseUpRef.current(e as unknown as React.PointerEvent);
     };
 
-    window.addEventListener('mousemove', handleGlobalMouseMove);
-    window.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('pointermove', handleGlobalPointerMove);
+    window.addEventListener('pointerup', handleGlobalPointerUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleGlobalMouseMove);
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
       // Safety cleanup
       if (historyPaused.current) {
         useCanvasStore.temporal.getState().resume();
