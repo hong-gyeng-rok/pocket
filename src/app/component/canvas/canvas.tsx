@@ -77,9 +77,7 @@ export default function Canvas() {
 
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
 
-  // Refs for Event Handlers (to avoid re-binding effect)
-  const handleMouseMoveRef = useRef<(e: React.PointerEvent | React.MouseEvent) => void>(() => { });
-  const handleMouseUpRef = useRef<(e: React.PointerEvent | React.MouseEvent) => void>(() => { });
+
 
   // Helper: Get Mouse Position relative to Canvas Element
   const getMousePos = (e: React.PointerEvent | React.MouseEvent) => {
@@ -1033,7 +1031,6 @@ export default function Canvas() {
 
   const handleMouseLeave = () => {
     if (isDragging.current) {
-      endDrawing();
       isDragging.current = false;
     }
     if (isResizingShape.current) {
@@ -1051,35 +1048,11 @@ export default function Canvas() {
       useCanvasStore.temporal.getState().resume();
       historyPaused.current = false;
     }
+    endDrawing();
     currentMousePos.current = null;
   }
 
-  // Update refs on render
-  handleMouseMoveRef.current = handleMouseMove;
-  handleMouseUpRef.current = handleMouseUp;
 
-  // Global Event Listeners for Interaction (especially over Memos)
-  useEffect(() => {
-    const handleGlobalPointerMove = (e: PointerEvent) => {
-      handleMouseMoveRef.current(e as unknown as React.PointerEvent);
-    };
-    const handleGlobalPointerUp = (e: PointerEvent) => {
-      handleMouseUpRef.current(e as unknown as React.PointerEvent);
-    };
-
-    window.addEventListener('pointermove', handleGlobalPointerMove);
-    window.addEventListener('pointerup', handleGlobalPointerUp);
-
-    return () => {
-      window.removeEventListener('pointermove', handleGlobalPointerMove);
-      window.removeEventListener('pointerup', handleGlobalPointerUp);
-      // Safety cleanup
-      if (historyPaused.current) {
-        useCanvasStore.temporal.getState().resume();
-        historyPaused.current = false;
-      }
-    };
-  }, [handleMouseMoveRef, handleMouseUpRef]);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     const tool = useToolStore.getState().tool;
@@ -1112,6 +1085,9 @@ export default function Canvas() {
       <canvas
         ref={canvasRef}
         onPointerDown={handleMouseDown}
+        onPointerMove={handleMouseMove}
+        onPointerUp={handleMouseUp}
+        onPointerLeave={handleMouseLeave}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         className={`block touch-none ${(currentTool === 'HAND' || isSpacePressed)
