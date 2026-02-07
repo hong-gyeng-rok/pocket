@@ -82,7 +82,7 @@ export default function Canvas() {
   const handleMouseUpRef = useRef<(e: React.MouseEvent) => void>(() => { });
 
   // Helper: Get Mouse Position relative to Canvas Element
-  const getMousePos = (e: React.PointerEvent | React.MouseEvent) => {
+  const getMousePos = (e: React.MouseEvent) => {
     if (!canvasRef.current) return { x: e.clientX, y: e.clientY };
     const rect = canvasRef.current.getBoundingClientRect();
     return {
@@ -570,7 +570,7 @@ export default function Canvas() {
   }, [render]);
 
   // Event Handlers
-  const handleMouseDown = (e: React.PointerEvent | React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
     const tool = useToolStore.getState().tool;
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
@@ -687,7 +687,7 @@ export default function Canvas() {
     }
   };
 
-  const handleMouseMove = useCallback((e: React.PointerEvent | React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
     currentMousePos.current = { x: mouseX, y: mouseY };
@@ -884,7 +884,7 @@ export default function Canvas() {
     }
   }, [screenToWorld, pan, startDrawing, continueDrawing, endDrawing, hitTest, findObject, hoverHandles, tempArrow]);
 
-  const handleMouseUp = useCallback((e: React.PointerEvent | React.MouseEvent) => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const tool = useToolStore.getState().tool;
     const color = useToolStore.getState().color;
     const worldPos = screenToWorld(getMousePos(e).x, getMousePos(e).y); // Need fresh pos
@@ -1108,10 +1108,10 @@ export default function Canvas() {
   };
 
   return (
-    <article className="w-screen h-screen overflow-hidden bg-gray-100 touch-none select-none">
+    <article className="w-screen h-screen overflow-hidden bg-gray-100">
       <canvas
         ref={canvasRef}
-        onPointerDown={handleMouseDown}
+        onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         className={`block touch-none ${(currentTool === 'HAND' || isSpacePressed)
