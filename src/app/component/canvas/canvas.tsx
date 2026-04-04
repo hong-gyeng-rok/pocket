@@ -7,6 +7,7 @@ import { useDrawing } from '@/app/hooks/useDrawing';
 import { useToolStore } from '@/app/store/useToolStore';
 import { useCanvasStore, Shape, Memo, ImageElement } from '@/app/store/useCanvasStore';
 import { useKeyboardShortcuts } from '@/app/hooks/useKeyboardShortcuts';
+import { usePinchZoom } from '@/app/hooks/usePinchZoom';
 
 export default function Canvas() {
   const { canvasRef, contextRef, size } = useCanvas();
@@ -45,6 +46,7 @@ export default function Canvas() {
   const images = useCanvasStore((state) => state.images);
 
   const { isSpacePressed } = useKeyboardShortcuts();
+  const { handleTouchMove, handleTouchEnd } = usePinchZoom(zoomCamera, pan);
   const requestRef = useRef<number>(0);
   const isDragging = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -66,6 +68,15 @@ export default function Canvas() {
 
   const isMovingObjects = useRef(false);
   const copiedShapes = useRef<(Shape | Memo | ImageElement)[]>([]);
+
+  // Multi-touch Gesture State
+  const activePointers = useRef<Map<number, { x: number, y: number }>>(new Map());
+  const lastPinchDistance = useRef<number | null>(null);
+  const lastPinchCenter = useRef<{ x: number, y: number } | null>(null);
+  const touchStartTimestamp = useRef<number>(0);
+  const maxPointersDuringTouch = useRef<number>(0);
+  const hasMovedSignificantly = useRef<boolean>(false);
+  const isUndoRedoTriggered = useRef<boolean>(false);
 
   // Hover Handles (Quick Connect)
   const [hoverHandles, setHoverHandles] = useState<{ id: string, objectId: string, x: number, y: number }[]>([]);
@@ -568,56 +579,76 @@ export default function Canvas() {
   }, [render]);
 
   // Event Handlers
-  const handleMouseDown = (e: React.PointerEvent | React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     const tool = useToolStore.getState().tool;
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
 
-    // 1. Check Handle Click first (Priority)
-    // Are we clicking on a visible hover handle?
-    // We need to check distance to hoverHandles
-    // Since hoverHandles are in World Coordinates (calculated below in MouseMove), we check dist.
+    // 1. Update Active Pointers
+    activePointers.current.set(e.pointerId, { x: mouseX, y: mouseY });
 
+    // 2. Track Multi-touch Gestures
+    if (activePointers.current.size === 1) {
+      touchStartTimestamp.current = Date.now();
+      maxPointersDuringTouch.current = 1;
+      hasMovedSignificantly.current = false;
+    } else {
+      maxPointersDuringTouch.current = Math.max(maxPointersDuringTouch.current, activePointers.current.size);
+    }
+
+    if (activePointers.current.size === 2) {
+      // Initialize pinch state
+      const pointers = Array.from(activePointers.current.values());
+      const p1 = pointers[0];
+      const p2 = pointers[1];
+      const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      const centerX = (p1.x + p2.x) / 2;
+      const centerY = (p1.y + p2.y) / 2;
+      lastPinchDistance.current = dist;
+      lastPinchCenter.current = { x: centerX, y: centerY };
+
+      // Cancel drawing if more than 1 finger
+      if (isDrawing.current) endDrawing();
+      return;
+    }
+
+    if (activePointers.current.size > 1) return;
+
+    // 1. Check Handle Click first (Priority)
     const clickedHandle = hoverHandles.find(h => {
       const dist = Math.sqrt(Math.pow(h.x - worldPos.x, 2) + Math.pow(h.y - worldPos.y, 2));
-      return dist <= 20; // Increased padding for easier clicking (was 10)
+      return dist <= 20; 
     });
 
     if (clickedHandle) {
-      // Start creating arrow
-      isCreatingShape.current = false; // Safety
+      isCreatingShape.current = false; 
       isCreatingArrow.current = true;
       arrowStartHandle.current = clickedHandle;
       setTempArrow({ x1: clickedHandle.x, y1: clickedHandle.y, x2: worldPos.x, y2: worldPos.y });
-      return; // Stop other interactions
+      return; 
     }
 
     // Check Resize Handle (Only if in Select mode and something is selected)
     if (tool === 'SELECT' && selectedIds.length > 0) {
       for (const id of selectedIds) {
         const obj = findObject(id);
-        // Allow resize for Rect/Circle and Image.
         if (!obj || obj.isLocked) continue;
         if (obj._type === 'SHAPE' && obj.type === 'ARROW') continue;
-        if (obj._type === 'MEMO') continue; // Memos have their own handles
+        if (obj._type === 'MEMO') continue; 
 
-        // Calculate Visual Bounds
         const minX = Math.min(obj.x, obj.x + obj.width);
         const minY = Math.min(obj.y, obj.y + obj.height);
         const maxX = Math.max(obj.x, obj.x + obj.width);
         const maxY = Math.max(obj.y, obj.y + obj.height);
 
         const padding = 4;
-        // Handle is at visual bottom-right of selection box
         const handleX = maxX + padding;
         const handleY = maxY + padding;
 
-        // Check Hit (8px radius)
         const dist = Math.hypot(handleX - worldPos.x, handleY - worldPos.y);
         if (dist <= 8) {
           isResizingShape.current = true;
           resizingShapeId.current = id;
-          // Anchor is the Visual Top-Left. 
           resizeAnchor.current = { x: minX, y: minY };
           return;
         }
@@ -635,7 +666,6 @@ export default function Canvas() {
         const clickedObj = findObject(hitResult.id);
         let idsToSelect = [hitResult.id];
 
-        // Auto-select group members
         if (clickedObj && clickedObj.groupId) {
           const groupMembers = [
             ...shapes.filter(s => s.groupId === clickedObj.groupId).map(s => s.id),
@@ -685,10 +715,48 @@ export default function Canvas() {
     }
   };
 
-  const handleMouseMove = useCallback((e: React.PointerEvent | React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
     currentMousePos.current = { x: mouseX, y: mouseY };
+
+    // 1. Update Active Pointers
+    activePointers.current.set(e.pointerId, { x: mouseX, y: mouseY });
+
+    // 2. Handle Multi-touch (Pinch & Pan)
+    if (activePointers.current.size === 2) {
+      const pointers = Array.from(activePointers.current.values());
+      const p1 = pointers[0];
+      const p2 = pointers[1];
+      const currentDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      const currentCenterX = (p1.x + p2.x) / 2;
+      const currentCenterY = (p1.y + p2.y) / 2;
+
+      // Pinch to Zoom
+      if (lastPinchDistance.current !== null) {
+        const factor = currentDist / lastPinchDistance.current;
+        if (Math.abs(factor - 1) > 0.002) {
+          zoomCamera(factor, currentCenterX, currentCenterY);
+          hasMovedSignificantly.current = true;
+        }
+      }
+
+      // Two Finger Pan
+      if (lastPinchCenter.current !== null) {
+        const dx = currentCenterX - lastPinchCenter.current.x;
+        const dy = currentCenterY - lastPinchCenter.current.y;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          pan(dx, dy);
+          hasMovedSignificantly.current = true;
+        }
+      }
+
+      lastPinchDistance.current = currentDist;
+      lastPinchCenter.current = { x: currentCenterX, y: currentCenterY };
+      return;
+    }
+
+    if (activePointers.current.size > 1) return;
 
     // Update Hover Handles (Only if not dragging/creating)
     if (!isDragging.current && !isCreatingShape.current && !isSelecting.current && !isMovingObjects.current && !isCreatingArrow.current && !isResizingShape.current) {
@@ -720,7 +788,6 @@ export default function Canvas() {
       }
       setIsHoveringResizeHandle(hoveringResize);
 
-      // Find object under mouse with padding for handle visibility
       let targetObj = null;
       if (hitResult) {
         targetObj = findObject(hitResult.id);
@@ -747,6 +814,7 @@ export default function Canvas() {
       const dy = e.clientY - lastMousePos.current.y;
       pan(dx, dy);
       lastMousePos.current = { x: e.clientX, y: e.clientY };
+      hasMovedSignificantly.current = true;
     }
     else if (isResizingShape.current && resizingShapeId.current) {
       // Resize Logic
@@ -756,18 +824,7 @@ export default function Canvas() {
         const newHeight = worldPos.y - resizeAnchor.current.y;
 
         if (obj._type === 'IMAGE') {
-          // Maintain Aspect Ratio for Images
-          // We use the aspect ratio from the *original* object state?
-          // Or current?
-          // Ideally, we should have stored aspect ratio on drag start.
-          // But for now, let's just calculate from current newWidth and try to match?
-          // No, we need original ratio. 
-          // Since `obj` is fresh from store (if using findObject inside render/callback correctly), 
-          // but resizing updates store every frame. So `obj` changes.
-          // Aspect ratio `obj.width / obj.height` should remain constant if we update correctly.
           const ratio = obj.width / obj.height;
-          // Use Width to drive Height? Or whichever is larger?
-          // Simple: Drive by Width.
           const fixedHeight = newWidth / ratio;
 
           updateImage(obj.id, {
@@ -789,6 +846,7 @@ export default function Canvas() {
           useCanvasStore.temporal.getState().pause();
           historyPaused.current = true;
         }
+        hasMovedSignificantly.current = true;
       }
     }
     else if (isMovingObjects.current) {
@@ -815,6 +873,7 @@ export default function Canvas() {
         useCanvasStore.temporal.getState().pause();
         historyPaused.current = true;
       }
+      hasMovedSignificantly.current = true;
     }
     else if (isCreatingArrow.current && tempArrow && arrowStartHandle.current) {
       // Dragging arrow
@@ -827,7 +886,6 @@ export default function Canvas() {
         const obj = findObject(hitResult.id);
         if (obj) {
           const handles = getObjectHandles(obj);
-          // Find closest handle
           let closest = handles[0];
           let minD = Infinity;
           handles.forEach(h => {
@@ -839,7 +897,7 @@ export default function Canvas() {
           });
 
           if (closest) {
-            setHoverHandles([closest]); // Show blue circle
+            setHoverHandles([closest]); 
             targetX = closest.x;
             targetY = closest.y;
             snapTarget.current = closest;
@@ -859,6 +917,7 @@ export default function Canvas() {
         x2: targetX,
         y2: targetY
       });
+      hasMovedSignificantly.current = true;
     }
     else if (isSelecting.current) {
       const currentBox = {
@@ -868,6 +927,7 @@ export default function Canvas() {
         height: Math.abs(worldPos.y - selectionStartPos.current.y)
       };
       setSelectionBox(currentBox);
+      hasMovedSignificantly.current = true;
     }
     else if (isCreatingShape.current) {
       setTempShape({
@@ -876,16 +936,62 @@ export default function Canvas() {
         width: worldPos.x - shapeStartPos.current.x,
         height: worldPos.y - shapeStartPos.current.y
       });
+      hasMovedSignificantly.current = true;
     }
     else {
       continueDrawing(mouseX, mouseY);
+      if (isDrawing.current) hasMovedSignificantly.current = true;
     }
   }, [screenToWorld, pan, startDrawing, continueDrawing, endDrawing, hitTest, findObject, hoverHandles, tempArrow]);
 
-  const handleMouseUp = useCallback((e: React.PointerEvent | React.MouseEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     const tool = useToolStore.getState().tool;
     const color = useToolStore.getState().color;
-    const worldPos = screenToWorld(getMousePos(e).x, getMousePos(e).y); // Need fresh pos
+    const { x: mouseX, y: mouseY } = getMousePos(e);
+    const worldPos = screenToWorld(mouseX, mouseY);
+
+    const wasMultiTouch = maxPointersDuringTouch.current > 1;
+
+    // 1. Multi-touch Gesture Detection (Tap for Undo/Redo)
+    if (wasMultiTouch && !isUndoRedoTriggered.current) {
+      const timeElapsed = Date.now() - touchStartTimestamp.current;
+      if (timeElapsed < 300 && !hasMovedSignificantly.current) {
+        if (maxPointersDuringTouch.current === 2) {
+          useCanvasStore.temporal.getState().undo();
+          isUndoRedoTriggered.current = true;
+        } else if (maxPointersDuringTouch.current === 3) {
+          useCanvasStore.temporal.getState().redo();
+          isUndoRedoTriggered.current = true;
+        }
+      }
+    }
+
+    // 2. Cleanup
+    activePointers.current.delete(e.pointerId);
+    if (activePointers.current.size === 0) {
+      maxPointersDuringTouch.current = 0;
+      hasMovedSignificantly.current = false;
+      isUndoRedoTriggered.current = false;
+      lastPinchDistance.current = null;
+      lastPinchCenter.current = null;
+    } else if (activePointers.current.size === 1) {
+      lastPinchDistance.current = null;
+      lastPinchCenter.current = null;
+    }
+
+    if (wasMultiTouch) {
+      isDragging.current = false;
+      isSelecting.current = false;
+      isCreatingShape.current = false;
+      isMovingObjects.current = false;
+      isCreatingArrow.current = false;
+      isResizingShape.current = false;
+      setTempShape(null);
+      setSelectionBox(null);
+      setTempArrow(null);
+      endDrawing();
+      return;
+    }
 
     if (historyPaused.current) {
       useCanvasStore.temporal.getState().resume();
@@ -900,18 +1006,15 @@ export default function Canvas() {
       resizingShapeId.current = null;
     }
     else if (isCreatingArrow.current && tempArrow && arrowStartHandle.current) {
-      // Finish Arrow Creation
       let endId = undefined;
       let endX = worldPos.x;
       let endY = worldPos.y;
 
-      // Use snapped target if available
       if (snapTarget.current) {
         endId = snapTarget.current.objectId;
         endX = snapTarget.current.x;
         endY = snapTarget.current.y;
       } else {
-        // Check if dropped on a handle or object (fallback)
         const hitResult = hitTest(worldPos.x, worldPos.y, true);
         if (hitResult && hitResult.id !== arrowStartHandle.current.objectId) {
           endId = hitResult.id;
@@ -935,7 +1038,6 @@ export default function Canvas() {
         }
       }
 
-      // Create Arrow Shape
       addShape({
         id: crypto.randomUUID(),
         type: 'ARROW',
@@ -943,7 +1045,7 @@ export default function Canvas() {
         y: arrowStartHandle.current.y,
         width: endX - arrowStartHandle.current.x,
         height: endY - arrowStartHandle.current.y,
-        fillColor: '#000000', // Default black
+        fillColor: '#000000',
         strokeColor: '#000000',
         strokeWidth: 4,
         startId: arrowStartHandle.current.objectId,
@@ -978,8 +1080,6 @@ export default function Canvas() {
           i.y + i.height > selectionBox.y
         )).map(i => i.id),
         ...strokes.filter(stroke => {
-          // Simple bounding box check for strokes
-          // Check if any point is inside selection box
           return stroke.points.some(p =>
             p.x >= selectionBox.x &&
             p.x <= selectionBox.x + selectionBox.width &&
@@ -1010,9 +1110,7 @@ export default function Canvas() {
       isCreatingShape.current = false;
       setTempShape(null);
     }
-    else if (tool === 'TEXT' && !isDragging.current) {
-      const { x: mouseX, y: mouseY } = getMousePos(e);
-      const worldPos = screenToWorld(mouseX, mouseY);
+    else if (tool === 'TEXT' && !isDragging.current && !hasMovedSignificantly.current) {
       addMemo({
         id: crypto.randomUUID(),
         content: "",
@@ -1029,27 +1127,27 @@ export default function Canvas() {
     isDragging.current = false;
   }, [screenToWorld, getMousePos, hitTest, findObject, getObjectHandles, addShape, setSelectedIds, addMemo, startDrawing, continueDrawing, endDrawing, selectionBox, tempShape, tempArrow, hoverHandles]);
 
-  const handleMouseLeave = () => {
-    if (isDragging.current) {
+  const handlePointerLeave = (e: React.PointerEvent) => {
+    activePointers.current.delete(e.pointerId);
+    if (activePointers.current.size === 0) {
       isDragging.current = false;
-    }
-    if (isResizingShape.current) {
       isResizingShape.current = false;
       resizingShapeId.current = null;
-    }
-    if (isCreatingArrow.current) {
       isCreatingArrow.current = false;
       setTempArrow(null);
       arrowStartHandle.current = null;
       snapTarget.current = null;
       setHoverHandles([]);
+      if (historyPaused.current) {
+        useCanvasStore.temporal.getState().resume();
+        historyPaused.current = false;
+      }
+      endDrawing();
+      currentMousePos.current = null;
+      maxPointersDuringTouch.current = 0;
+      hasMovedSignificantly.current = false;
+      isUndoRedoTriggered.current = false;
     }
-    if (historyPaused.current) {
-      useCanvasStore.temporal.getState().resume();
-      historyPaused.current = false;
-    }
-    endDrawing();
-    currentMousePos.current = null;
   }
 
 
@@ -1084,10 +1182,10 @@ export default function Canvas() {
     <article className="w-screen h-screen overflow-hidden bg-gray-100 touch-none select-none">
       <canvas
         ref={canvasRef}
-        onPointerDown={handleMouseDown}
-        onPointerMove={handleMouseMove}
-        onPointerUp={handleMouseUp}
-        onPointerLeave={handleMouseLeave}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         className={`block touch-none ${(currentTool === 'HAND' || isSpacePressed)
