@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Lock, Palette, Pin, StickyNote, Trash2, Unlock } from "lucide-react";
+import { Copy, Lock, Palette, Pin, StickyNote, Tag, Trash2, Unlock } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import type { Memo } from "@/app/types/canvas";
 
@@ -86,6 +86,23 @@ export default function MobileSelectionActionBar() {
       if (memos.some((memo) => memo.id === id)) updateMemo(id, { decoration });
     });
   };
+  const editTapeLabel = () => {
+    const current =
+      memos.find((memo) => selectedIds.includes(memo.id))?.label ??
+      shapes.find((shape) => selectedIds.includes(shape.id))?.label ??
+      "";
+    const label = window.prompt("Tape title", current);
+    if (label === null) return;
+
+    selectedIds.forEach((id) => {
+      if (memos.some((memo) => memo.id === id)) updateMemo(id, { label, decoration: "tape" });
+      if (shapes.some((shape) => shape.id === id && shape.type !== "ARROW")) updateShape(id, { label });
+    });
+  };
+  const hasTapeTargetSelection = selectedIds.some((id) => (
+    memos.some((memo) => memo.id === id) ||
+    shapes.some((shape) => shape.id === id && shape.type !== "ARROW")
+  ));
 
   return (
     <div className="fixed bottom-28 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-xl backdrop-blur md:hidden">
@@ -115,6 +132,15 @@ export default function MobileSelectionActionBar() {
           />
         ))}
       </div>
+      {hasTapeTargetSelection && (
+        <button
+          onClick={editTapeLabel}
+          className="grid min-h-11 min-w-11 place-items-center rounded-full text-amber-700 hover:bg-amber-50"
+          aria-label="Edit tape title"
+        >
+          <Tag size={18} />
+        </button>
+      )}
       {memos.some((memo) => selectedIds.includes(memo.id)) && (
         <div className="flex items-center gap-1 rounded-full bg-amber-50 px-1 py-1">
           <StickyNote size={16} className="text-amber-700" />

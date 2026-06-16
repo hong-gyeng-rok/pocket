@@ -31,6 +31,7 @@ export interface Stroke {
 export interface Memo {
   id: string;
   content: string;
+  label?: string;
   x: number;
   y: number;
   width: number;
@@ -59,6 +60,7 @@ export type HandleType = 'top' | 'right' | 'bottom' | 'left';
 export interface Shape {
   id: string;
   type: 'RECTANGLE' | 'CIRCLE' | 'TEXT' | 'ARROW';
+  label?: string;
   x: number;
   y: number;
   width: number;
@@ -266,6 +268,7 @@ const normalizeMemo = (memo: unknown): Memo | undefined => {
   return {
     id: asString(memo.id, crypto.randomUUID()),
     content: asString(memo.content, ''),
+    label: asOptionalString(memo.label),
     x: asNumber(memo.x, 0),
     y: asNumber(memo.y, 0),
     width: Math.max(1, asNumber(memo.width, DEFAULT_MEMO_WIDTH)),
@@ -303,6 +306,7 @@ const normalizeShape = (shape: unknown): Shape | undefined => {
   return {
     id: asString(shape.id, crypto.randomUUID()),
     type: asShapeType(shape.type),
+    label: asOptionalString(shape.label),
     x: asNumber(shape.x, 0),
     y: asNumber(shape.y, 0),
     width: asNumber(shape.width, DEFAULT_OBJECT_WIDTH),

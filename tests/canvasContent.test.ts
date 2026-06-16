@@ -57,6 +57,31 @@ test('toCanvasContent strips UI-only fields from store-shaped state', () => {
   assert.deepEqual(Object.keys(content).sort(), ['images', 'memos', 'shapes', 'strokes', 'version']);
 });
 
+test('normalizeCanvasContent preserves masking tape labels for memos and shapes', () => {
+  const content = normalizeCanvasContent({
+    memos: [
+      { id: 'memo-label', content: '', label: 'Research', x: 0, y: 0, width: 100, height: 100, color: '#fff' },
+    ],
+    shapes: [
+      {
+        id: 'shape-label',
+        type: 'RECTANGLE',
+        label: 'Flow',
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 80,
+        fillColor: '#BFDBFE',
+        strokeColor: 'transparent',
+        strokeWidth: 0,
+      },
+    ],
+  });
+
+  assert.equal(content.memos[0].label, 'Research');
+  assert.equal(content.shapes[0].label, 'Flow');
+});
+
 test('chunkCanvasContent groups objects by world-space chunk and flattens back', () => {
   const content = normalizeCanvasContent({
     strokes: [

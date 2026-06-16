@@ -82,18 +82,6 @@ const applyCameraTransform = (ctx: CanvasRenderingContext2D, camera: CameraView)
   ctx.translate(-camera.x, -camera.y);
 };
 
-const seededNoise = (seed: string, index: number) => {
-  let hash = 2166136261;
-  const value = `${seed}:${index}`;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return ((hash >>> 0) / 4294967295) * 2 - 1;
-};
-
-const jitter = (seed: string, index: number, amount: number) => seededNoise(seed, index) * amount;
-
 const normalizeDrawableRect = (shape: Shape | Rect): Rect => {
   const x = Math.min(shape.x, shape.x + shape.width);
   const y = Math.min(shape.y, shape.y + shape.height);
@@ -105,109 +93,97 @@ const normalizeDrawableRect = (shape: Shape | Rect): Rect => {
   };
 };
 
-const drawSketchLine = (
-  ctx: CanvasRenderingContext2D,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  seed: string,
-  amount = 1.8
-) => {
-  ctx.moveTo(x1 + jitter(seed, 1, amount), y1 + jitter(seed, 2, amount));
-  const midX = (x1 + x2) / 2 + jitter(seed, 3, amount * 1.4);
-  const midY = (y1 + y2) / 2 + jitter(seed, 4, amount * 1.4);
-  ctx.quadraticCurveTo(midX, midY, x2 + jitter(seed, 5, amount), y2 + jitter(seed, 6, amount));
-};
-
-const drawSketchRect = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, seed: string) => {
+const drawCleanRect = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, fillColor: string, strokeColor?: string, strokeWidth = 0) => {
   const { x, y, width, height } = normalizeDrawableRect(shape);
 
   ctx.beginPath();
-  drawSketchLine(ctx, x, y, x + width, y, `${seed}:top`);
-  drawSketchLine(ctx, x + width, y, x + width, y + height, `${seed}:right`);
-  drawSketchLine(ctx, x + width, y + height, x, y + height, `${seed}:bottom`);
-  drawSketchLine(ctx, x, y + height, x, y, `${seed}:left`);
-  ctx.closePath();
-};
+  ctx.rect(x, y, width, height);
+  ctx.fillStyle = fillColor;
+  ctx.fill();
 
-const drawSketchEllipse = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, seed: string) => {
-  const { x, y, width, height } = normalizeDrawableRect(shape);
-  const cx = x + width / 2;
-  const cy = y + height / 2;
-  const rx = width / 2;
-  const ry = height / 2;
-
-  ctx.beginPath();
-  for (let i = 0; i <= 32; i++) {
-    const angle = (i / 32) * Math.PI * 2;
-    const wobble = 1 + jitter(seed, i, 0.035);
-    const x = cx + Math.cos(angle) * rx * wobble;
-    const y = cy + Math.sin(angle) * ry * wobble;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-};
-
-const drawFillTexture = (ctx: CanvasRenderingContext2D, shape: Shape, seed: string) => {
-  if (!shape.fillColor || shape.fillColor === 'transparent') return;
-
-  const bounds = normalizeDrawableRect(shape);
-  const gap = 13;
-  ctx.save();
-  ctx.clip();
-  ctx.globalAlpha = 0.13;
-  ctx.strokeStyle = '#5f5142';
-  ctx.lineWidth = 1;
-  for (let x = bounds.x - bounds.height; x < bounds.x + bounds.width + bounds.height; x += gap) {
-    ctx.beginPath();
-    ctx.moveTo(x + jitter(seed, Math.floor(x), 2), bounds.y + bounds.height);
-    ctx.lineTo(x + bounds.height + jitter(seed, Math.floor(x) + 1, 2), bounds.y);
+  if (strokeColor && strokeColor !== 'transparent' && strokeWidth > 0) {
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
     ctx.stroke();
   }
-  ctx.restore();
 };
 
-const drawFilledSketchRect = (ctx: CanvasRenderingContext2D, shape: Shape, seed: string) => {
-  drawSketchRect(ctx, shape, seed);
+const drawCleanEllipse = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, fillColor: string, strokeColor?: string, strokeWidth = 0) => {
+  const { x, y, width, height } = normalizeDrawableRect(shape);
+
+  ctx.beginPath();
+  ctx.ellipse(x + width / 2, y + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = fillColor;
   ctx.fill();
-  drawFillTexture(ctx, shape, seed);
+
+  if (strokeColor && strokeColor !== 'transparent' && strokeWidth > 0) {
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+  }
 };
 
-const drawFilledSketchEllipse = (ctx: CanvasRenderingContext2D, shape: Shape, seed: string) => {
-  drawSketchEllipse(ctx, shape, seed);
-  ctx.fill();
-  drawFillTexture(ctx, shape, seed);
-};
-
-const drawSketchArrow = (
+const drawCleanArrow = (
   ctx: CanvasRenderingContext2D,
   x1: number,
   y1: number,
   x2: number,
   y2: number,
   color: string,
-  width: number,
-  seed: string
+  width: number
 ) => {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const headLen = Math.max(14, width * 4);
+
   ctx.save();
   ctx.strokeStyle = color;
+  ctx.fillStyle = color;
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  drawSketchLine(ctx, x1, y1, x2, y2, `${seed}:shaft`, 2.1);
-
-  const headLen = 20;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const hx1 = x2 - headLen * Math.cos(angle - Math.PI / 6);
-  const hy1 = y2 - headLen * Math.sin(angle - Math.PI / 6);
-  const hx2 = x2 - headLen * Math.cos(angle + Math.PI / 6);
-  const hy2 = y2 - headLen * Math.sin(angle + Math.PI / 6);
-  drawSketchLine(ctx, x2, y2, hx1, hy1, `${seed}:head-a`, 1.5);
-  drawSketchLine(ctx, x2, y2, hx2, hy2, `${seed}:head-b`, 1.5);
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
   ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+};
+
+const drawMaskingTapeLabel = (
+  ctx: CanvasRenderingContext2D,
+  label: string | undefined,
+  bounds: Rect
+) => {
+  const text = label?.trim();
+  if (!text) return;
+
+  const tapeWidth = Math.max(92, Math.min(bounds.width * 0.78, 190));
+  const tapeHeight = 26;
+  const x = bounds.x + bounds.width / 2 - tapeWidth / 2;
+  const y = bounds.y - tapeHeight * 0.55;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(245, 221, 164, 0.9)';
+  ctx.strokeStyle = 'rgba(173, 137, 76, 0.28)';
+  ctx.lineWidth = 1;
+  ctx.shadowColor = 'rgba(70, 55, 30, 0.14)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  ctx.fillRect(x, y, tapeWidth, tapeHeight);
+  ctx.shadowColor = 'transparent';
+  ctx.strokeRect(x + 0.5, y + 0.5, tapeWidth - 1, tapeHeight - 1);
+
+  ctx.fillStyle = 'rgba(90, 66, 28, 0.78)';
+  ctx.font = '600 13px Arial, Helvetica, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text.slice(0, 24), x + tapeWidth / 2, y + tapeHeight / 2 + 0.5, tapeWidth - 16);
   ctx.restore();
 };
 
@@ -397,24 +373,28 @@ export const drawShapesLayer = (
     if (!rectsIntersect(getObjectBounds(shape), viewportBounds)) continue;
 
     ctx.save();
-    ctx.fillStyle = shape.fillColor || 'transparent';
-    ctx.strokeStyle = shape.strokeColor !== 'transparent' && shape.strokeColor
+    const fillColor = shape.fillColor || 'transparent';
+    const strokeColor = shape.strokeColor !== 'transparent' && shape.strokeColor
       ? shape.strokeColor
       : shape.fillColor || '#000000';
-    ctx.lineWidth = Math.max(shape.strokeWidth || 2, 2);
+    const strokeWidth = shape.strokeColor === 'transparent' ? 0 : shape.strokeWidth;
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = Math.max(strokeWidth || 0, 0);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     if (shape.type === 'RECTANGLE') {
-      drawFilledSketchRect(ctx, shape, shape.id);
+      drawCleanRect(ctx, shape, fillColor, strokeColor, strokeWidth);
     } else if (shape.type === 'CIRCLE') {
-      drawFilledSketchEllipse(ctx, shape, shape.id);
+      drawCleanEllipse(ctx, shape, fillColor, strokeColor, strokeWidth);
     } else if (shape.type === 'ARROW') {
       const strokeColor = shape.strokeColor !== 'transparent' && shape.strokeColor
         ? shape.strokeColor
         : shape.fillColor || '#000000';
-      drawSketchArrow(ctx, shape.x, shape.y, shape.x + shape.width, shape.y + shape.height, strokeColor, shape.strokeWidth || 4, shape.id);
+      drawCleanArrow(ctx, shape.x, shape.y, shape.x + shape.width, shape.y + shape.height, strokeColor, shape.strokeWidth || 4);
     }
+    drawMaskingTapeLabel(ctx, shape.label, getObjectBounds(shape));
     ctx.restore();
 
     if (selectedIds.includes(shape.id)) {
@@ -448,21 +428,18 @@ export const drawShapesLayer = (
     ctx.lineWidth = 1;
 
     if (currentTool === 'RECTANGLE') {
-      drawSketchRect(ctx, tempShape, 'draft');
-      ctx.fill();
+      drawCleanRect(ctx, tempShape, `${currentColor}80`, currentColor, 1);
     } else if (currentTool === 'CIRCLE') {
-      drawSketchEllipse(ctx, tempShape, 'draft');
-      ctx.fill();
+      drawCleanEllipse(ctx, tempShape, `${currentColor}80`, currentColor, 1);
     } else if (currentTool === 'ARROW') {
-      drawSketchArrow(
+      drawCleanArrow(
         ctx,
         tempShape.x,
         tempShape.y,
         tempShape.x + tempShape.width,
         tempShape.y + tempShape.height,
         currentColor,
-        4,
-        'draft'
+        4
       );
     }
   }
@@ -485,7 +462,7 @@ export const drawShapesLayer = (
   }
 
   if (isCreatingArrow && tempArrow) {
-    drawSketchArrow(ctx, tempArrow.x1, tempArrow.y1, tempArrow.x2, tempArrow.y2, '#000000', 4, 'temp-arrow');
+    drawCleanArrow(ctx, tempArrow.x1, tempArrow.y1, tempArrow.x2, tempArrow.y2, '#000000', 4);
   }
 
   ctx.restore();

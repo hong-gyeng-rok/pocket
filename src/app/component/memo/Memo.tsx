@@ -108,7 +108,7 @@ export default function MemoComponent({ memo }: MemoProps) {
 
   return (
     <div
-      className="absolute flex flex-col overflow-hidden rounded-[3px] border border-black/5 shadow-[0_10px_24px_rgba(70,55,30,0.16)] pointer-events-auto transition-shadow hover:shadow-[0_14px_32px_rgba(70,55,30,0.2)] group md:rotate-[var(--memo-rotation)]"
+      className="absolute flex flex-col overflow-visible rounded-[3px] border border-black/5 shadow-[0_10px_24px_rgba(70,55,30,0.16)] pointer-events-auto transition-shadow hover:shadow-[0_14px_32px_rgba(70,55,30,0.2)] group md:rotate-[var(--memo-rotation)]"
       style={{
         left: memo.x,
         top: memo.y,
@@ -121,7 +121,14 @@ export default function MemoComponent({ memo }: MemoProps) {
     >
       <div className="pointer-events-none absolute inset-0 opacity-40 mix-blend-multiply [background-image:radial-gradient(circle_at_1px_1px,rgba(90,70,35,0.15)_1px,transparent_0)] [background-size:18px_18px]" />
       {(memo.decoration ?? 'tape') === 'tape' && (
-        <div className="pointer-events-none absolute left-1/2 top-0 h-5 w-20 -translate-x-1/2 -translate-y-2 rotate-[-2deg] rounded-sm bg-amber-100/65 shadow-sm" />
+        <input
+          className="absolute left-1/2 top-0 z-10 h-7 w-[min(180px,76%)] -translate-x-1/2 -translate-y-3 rounded-sm border border-amber-200/60 bg-amber-100/90 px-3 text-center text-[12px] font-semibold text-amber-950 shadow-sm outline-none placeholder:text-amber-800/45 focus:border-amber-300 focus:bg-amber-50"
+          value={memo.label ?? ""}
+          onChange={(event) => updateMemo(memo.id, { label: event.target.value })}
+          onMouseDown={(event) => event.stopPropagation()}
+          placeholder="Title"
+          maxLength={28}
+        />
       )}
       {memo.decoration === 'pin' && (
         <div className="pointer-events-none absolute left-1/2 top-2 h-4 w-4 -translate-x-1/2 rounded-full bg-red-400 shadow-sm ring-2 ring-red-200/70" />

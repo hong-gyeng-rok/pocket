@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Lock, Unlock, Group, Ungroup, Trash2, Copy, Pin, StickyNote } from "lucide-react";
+import { Lock, Unlock, Group, Ungroup, Trash2, Copy, Pin, StickyNote, Tag } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import type { ImageElement, Memo, Point, Shape, Stroke } from "@/app/types/canvas";
@@ -27,6 +27,7 @@ export default function SelectionMenu() {
   const addImage = useCanvasStore((state) => state.addImage);
   const addShape = useCanvasStore((state) => state.addShape);
   const updateMemo = useCanvasStore((state) => state.updateMemo);
+  const updateShape = useCanvasStore((state) => state.updateShape);
 
   const zoom = useCameraStore((state) => state.zoom);
 
@@ -135,9 +136,26 @@ export default function SelectionMenu() {
   };
 
   const hasMemoSelection = selectedIds.some(id => memos.some(memo => memo.id === id));
+  const hasTapeTargetSelection = selectedIds.some(id => (
+      memos.some(memo => memo.id === id) ||
+      shapes.some(shape => shape.id === id && shape.type !== 'ARROW')
+  ));
   const applyDecoration = (decoration: NonNullable<Memo["decoration"]>) => {
       selectedIds.forEach(id => {
           if (memos.some(memo => memo.id === id)) updateMemo(id, { decoration });
+      });
+  };
+  const editTapeLabel = () => {
+      const current =
+          memos.find(memo => selectedIds.includes(memo.id))?.label ??
+          shapes.find(shape => selectedIds.includes(shape.id))?.label ??
+          "";
+      const label = window.prompt("Tape title", current);
+      if (label === null) return;
+
+      selectedIds.forEach(id => {
+          if (memos.some(memo => memo.id === id)) updateMemo(id, { label, decoration: "tape" });
+          if (shapes.some(shape => shape.id === id && shape.type !== 'ARROW')) updateShape(id, { label });
       });
   };
 
@@ -174,9 +192,22 @@ export default function SelectionMenu() {
           <Copy size={16} />
         </button>
 
-        {hasMemoSelection && (
+        {hasTapeTargetSelection && (
           <>
             <div className="w-px h-4 bg-gray-200" />
+            <button
+              onClick={editTapeLabel}
+              className="p-2 rounded hover:bg-amber-50 text-amber-700"
+              title="Tape title"
+            >
+              <Tag size={16} />
+            </button>
+          </>
+        )}
+
+        {hasMemoSelection && (
+          <>
+            {!hasTapeTargetSelection && <div className="w-px h-4 bg-gray-200" />}
             <button
               onClick={() => applyDecoration("tape")}
               className="p-2 rounded hover:bg-amber-50 text-amber-700"
