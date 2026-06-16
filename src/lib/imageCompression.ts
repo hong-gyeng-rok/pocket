@@ -7,23 +7,79 @@ export interface CompressedImage {
 const MAX_IMAGE_EDGE = 1600;
 const IMAGE_QUALITY = 0.82;
 
-const loadImage = (file: File): Promise<HTMLImageElement> => {
+const readBlobAsDataUrl = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      const image = new Image();
-      image.onerror = () => reject(new Error('Failed to decode image'));
-      image.onload = () => resolve(image);
-      image.src = String(reader.result);
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsDataURL(blob);
+  });
+};
+
+const exportCanvas = async (canvas: HTMLCanvasElement): Promise<string> => {
+  const preferredTypes = ['image/webp', 'image/png'];
+
+  for (const type of preferredTypes) {
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(null);
+            return;
+          }
+
+          readBlobAsDataUrl(blob).then(resolve).catch(() => resolve(null));
+        },
+        type,
+        IMAGE_QUALITY
+      );
+    });
+
+    if (dataUrl?.startsWith(`data:${type};base64,`)) {
+      return dataUrl;
+    }
+  }
+
+  const fallback = canvas.toDataURL('image/png');
+  if (!fallback.startsWith('data:image/png;base64,')) {
+    throw new Error('Failed to encode image');
+  }
+
+  return fallback;
+};
+
+const loadImage = (file: File): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    const cleanup = () => URL.revokeObjectURL(objectUrl);
+    const fail = () => {
+      cleanup();
+      reject(new Error('Unsupported image format. Please use PNG, JPEG, WebP, GIF, or AVIF.'));
     };
-    reader.readAsDataURL(file);
+
+    image.onerror = fail;
+    image.onload = async () => {
+      try {
+        if (typeof image.decode === 'function') {
+          await image.decode();
+        }
+
+        resolve(image);
+      } catch {
+        reject(new Error('Failed to decode image'));
+      } finally {
+        cleanup();
+      }
+    };
+
+    image.src = objectUrl;
   });
 };
 
 export const compressImageFile = async (file: File): Promise<CompressedImage> => {
   const image = await loadImage(file);
-  const ratio = image.width / image.height;
   const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
   const width = Math.max(1, Math.round(image.width * scale));
   const height = Math.max(1, Math.round(image.height * scale));
@@ -42,12 +98,12 @@ export const compressImageFile = async (file: File): Promise<CompressedImage> =>
 
   context.drawImage(image, 0, 0, width, height);
 
-  const compressedSrc = canvas.toDataURL('image/webp', IMAGE_QUALITY);
+  const compressedSrc = await exportCanvas(canvas);
 
   return {
     src: compressedSrc,
     width,
-    height: width / ratio,
+    height,
   };
 };
 

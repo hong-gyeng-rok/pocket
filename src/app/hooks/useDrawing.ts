@@ -111,6 +111,7 @@ export const useDrawing = (
             tool: 'PEN',
             color: toolState.color,
             size: toolState.strokeWidth,
+            penStyle: toolState.penStyle,
             points: simplifiedPoints,
             bounds: createStrokeBounds(simplifiedPoints),
             createdAt: Date.now(),

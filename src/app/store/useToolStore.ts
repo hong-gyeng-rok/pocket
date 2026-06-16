@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { PenStyle } from '@/app/types/canvas';
 
 export type ToolType = 'SELECT' | 'HAND' | 'PEN' | 'ERASER' | 'RECTANGLE' | 'CIRCLE' | 'ARROW' | 'TEXT' | 'NONE'; 
 // NONE is kept for backward compatibility but effectively means SELECT in logic usually.
@@ -6,7 +7,6 @@ export type ToolType = 'SELECT' | 'HAND' | 'PEN' | 'ERASER' | 'RECTANGLE' | 'CIR
 
 export type Mode = 'DRAWING' | 'OBJECT';
 export type CanvasBackground = 'plain' | 'paper' | 'dotted' | 'grid' | 'notebook';
-export type PenStyle = 'pencil' | 'marker' | 'highlighter';
 export type CanvasTheme = 'clean-paper' | 'warm-notebook' | 'dark-chalkboard';
 
 interface ToolState {

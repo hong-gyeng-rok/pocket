@@ -9,6 +9,15 @@ import {
 } from "@/app/types/canvas";
 import { prisma } from "@/lib/prisma";
 
+const isMissingCanvasChunkTableError = (error: unknown) => {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2021"
+  );
+};
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -41,28 +50,37 @@ export async function POST(request: Request) {
     const normalizedContent = normalizeCanvasContent(content);
     const chunks = chunkCanvasContent(normalizedContent);
 
-    await prisma.$transaction([
-      prisma.canvas.update({
+    try {
+      await prisma.$transaction([
+        prisma.canvas.update({
+          where: { id },
+          data: { content: toPrismaJson(toCanvasContent(createEmptyCanvasContent())) },
+        }),
+        prisma.canvasChunk.deleteMany({
+          where: { canvasId: id },
+        }),
+        ...(chunks.length > 0
+          ? [
+              prisma.canvasChunk.createMany({
+                data: chunks.map((chunk) => ({
+                  canvasId: id,
+                  chunkKey: chunk.id,
+                  x: chunk.x,
+                  y: chunk.y,
+                  content: toPrismaJson(toCanvasContent(chunk)),
+                })),
+              }),
+            ]
+          : []),
+      ]);
+    } catch (error) {
+      if (!isMissingCanvasChunkTableError(error)) throw error;
+
+      await prisma.canvas.update({
         where: { id },
-        data: { content: toPrismaJson(toCanvasContent(createEmptyCanvasContent())) },
-      }),
-      prisma.canvasChunk.deleteMany({
-        where: { canvasId: id },
-      }),
-      ...(chunks.length > 0
-        ? [
-            prisma.canvasChunk.createMany({
-              data: chunks.map((chunk) => ({
-                canvasId: id,
-                chunkKey: chunk.id,
-                x: chunk.x,
-                y: chunk.y,
-                content: toPrismaJson(toCanvasContent(chunk)),
-              })),
-            }),
-          ]
-        : []),
-    ]);
+        data: { content: toPrismaJson(normalizedContent) },
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

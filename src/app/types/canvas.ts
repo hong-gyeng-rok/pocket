@@ -15,12 +15,15 @@ export interface Bounds {
   height: number;
 }
 
+export type PenStyle = 'pencil' | 'marker' | 'highlighter';
+
 export interface Stroke {
   id: string;
   tool: 'PEN' | 'ERASER';
   color: string;
   size: number;
   points: Point[];
+  penStyle?: PenStyle;
   bounds?: Bounds;
   createdAt: number;
 }
@@ -131,6 +134,12 @@ const asFontSize = (value: unknown): Memo['fontSize'] => {
   return value === 'sm' || value === 'm' || value === 'l' || value === 'xl'
     ? value
     : undefined;
+};
+
+const asPenStyle = (value: unknown): PenStyle => {
+  return value === 'pencil' || value === 'marker' || value === 'highlighter'
+    ? value
+    : 'marker';
 };
 
 const asMemoDecoration = (value: unknown): Memo['decoration'] => {
@@ -245,6 +254,7 @@ const normalizeStroke = (stroke: unknown): Stroke | undefined => {
     color: asString(stroke.color, '#000000'),
     size: Math.max(1, asNumber(stroke.size, 2)),
     points,
+    penStyle: asPenStyle(stroke.penStyle),
     bounds: normalizeBounds(stroke.bounds) ?? createBoundsFromPoints(points),
     createdAt: asNumber(stroke.createdAt, Date.now()),
   };

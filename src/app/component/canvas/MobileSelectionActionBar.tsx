@@ -1,9 +1,15 @@
 "use client";
 
-import { Copy, Lock, Palette, Trash2, Unlock } from "lucide-react";
+import { Copy, Lock, Palette, Pin, StickyNote, Trash2, Unlock } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
+import type { Memo } from "@/app/types/canvas";
 
 const noteColors = ["#fef3c7", "#fee2e2", "#dbeafe", "#dcfce7", "#fce7f3"];
+const decorations: { value: NonNullable<Memo["decoration"]>; label: string }[] = [
+  { value: "tape", label: "Tape" },
+  { value: "pin", label: "Pin" },
+  { value: "label", label: "Label" },
+];
 
 export default function MobileSelectionActionBar() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
@@ -75,6 +81,12 @@ export default function MobileSelectionActionBar() {
     });
   };
 
+  const applyDecoration = (decoration: NonNullable<Memo["decoration"]>) => {
+    selectedIds.forEach((id) => {
+      if (memos.some((memo) => memo.id === id)) updateMemo(id, { decoration });
+    });
+  };
+
   return (
     <div className="fixed bottom-28 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-xl backdrop-blur md:hidden">
       <button
@@ -103,6 +115,21 @@ export default function MobileSelectionActionBar() {
           />
         ))}
       </div>
+      {memos.some((memo) => selectedIds.includes(memo.id)) && (
+        <div className="flex items-center gap-1 rounded-full bg-amber-50 px-1 py-1">
+          <StickyNote size={16} className="text-amber-700" />
+          {decorations.map((decoration) => (
+            <button
+              key={decoration.value}
+              onClick={() => applyDecoration(decoration.value)}
+              className="grid h-8 min-w-8 place-items-center rounded-full px-2 text-[11px] font-semibold text-amber-800 hover:bg-white"
+              aria-label={`Set ${decoration.label}`}
+            >
+              {decoration.value === "pin" ? <Pin size={14} /> : decoration.label[0]}
+            </button>
+          ))}
+        </div>
+      )}
       <button
         onClick={deleteSelection}
         className="grid min-h-11 min-w-11 place-items-center rounded-full text-red-500 hover:bg-red-50"

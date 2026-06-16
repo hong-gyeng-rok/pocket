@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Lock, Unlock, Group, Ungroup, Trash2, Copy } from "lucide-react";
+import { Lock, Unlock, Group, Ungroup, Trash2, Copy, Pin, StickyNote } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import type { ImageElement, Memo, Point, Shape, Stroke } from "@/app/types/canvas";
@@ -26,6 +26,7 @@ export default function SelectionMenu() {
   const addMemo = useCanvasStore((state) => state.addMemo);
   const addImage = useCanvasStore((state) => state.addImage);
   const addShape = useCanvasStore((state) => state.addShape);
+  const updateMemo = useCanvasStore((state) => state.updateMemo);
 
   const zoom = useCameraStore((state) => state.zoom);
 
@@ -133,6 +134,13 @@ export default function SelectionMenu() {
       if (nextIds.length > 0) setSelectedIds(nextIds);
   };
 
+  const hasMemoSelection = selectedIds.some(id => memos.some(memo => memo.id === id));
+  const applyDecoration = (decoration: NonNullable<Memo["decoration"]>) => {
+      selectedIds.forEach(id => {
+          if (memos.some(memo => memo.id === id)) updateMemo(id, { decoration });
+      });
+  };
+
   // Logic to show group/delete section
   const showGroup = bounds.isMultiple || bounds.hasGroup;
   const showDelete = !bounds.isAllLocked;
@@ -165,6 +173,33 @@ export default function SelectionMenu() {
         >
           <Copy size={16} />
         </button>
+
+        {hasMemoSelection && (
+          <>
+            <div className="w-px h-4 bg-gray-200" />
+            <button
+              onClick={() => applyDecoration("tape")}
+              className="p-2 rounded hover:bg-amber-50 text-amber-700"
+              title="Masking tape"
+            >
+              <StickyNote size={16} />
+            </button>
+            <button
+              onClick={() => applyDecoration("pin")}
+              className="p-2 rounded hover:bg-amber-50 text-amber-700"
+              title="Pin"
+            >
+              <Pin size={16} />
+            </button>
+            <button
+              onClick={() => applyDecoration("label")}
+              className="px-2 py-1 rounded hover:bg-amber-50 text-[11px] font-bold text-amber-700"
+              title="Label"
+            >
+              Label
+            </button>
+          </>
+        )}
 
         {/* Separator only if right section exists */}
         {showRightSection && <div className="w-px h-4 bg-gray-200" />}

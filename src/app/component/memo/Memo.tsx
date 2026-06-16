@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import type { Memo } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
-import { X, ChevronDown, Bold, List, ListChecks } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
 
 interface MemoProps {
   memo: Memo;
@@ -22,70 +22,6 @@ const getMemoRotation = (id: string) => {
   return ((seed % 7) - 3) * 0.35;
 };
 
-const renderInlineMarkdown = (text: string) => {
-  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
-
-  return parts.map((part, index) => {
-    const bold = part.match(/^\*\*([^*]+)\*\*$/);
-    if (bold) return <strong key={`${part}-${index}`}>{bold[1]}</strong>;
-
-    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (link) {
-      return (
-        <a
-          key={`${part}-${index}`}
-          href={link[2]}
-          target="_blank"
-          rel="noreferrer"
-          className="underline decoration-stone-500 decoration-wavy underline-offset-2"
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {link[1]}
-        </a>
-      );
-    }
-
-    return part;
-  });
-};
-
-const renderMarkdownPreview = (content: string): ReactNode => {
-  if (!content.trim()) {
-    return <span className="text-stone-500/70">Type something...</span>;
-  }
-
-  return content.split('\n').map((line, index) => {
-    if (line.startsWith('# ')) {
-      return <h3 key={index} className="mb-2 text-lg font-bold leading-snug">{renderInlineMarkdown(line.slice(2))}</h3>;
-    }
-
-    const checkbox = line.match(/^- \[([ xX])\] (.*)$/);
-    if (checkbox) {
-      const checked = checkbox[1].toLowerCase() === 'x';
-      return (
-        <div key={index} className="flex items-start gap-2">
-          <span className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded border border-stone-600/50 ${checked ? 'bg-stone-700 text-white' : 'bg-white/50'}`}>
-            {checked ? '✓' : ''}
-          </span>
-          <span className={checked ? 'line-through opacity-70' : ''}>{renderInlineMarkdown(checkbox[2])}</span>
-        </div>
-      );
-    }
-
-    if (line.startsWith('- ')) {
-      return (
-        <div key={index} className="flex items-start gap-2">
-          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-stone-600/70" />
-          <span>{renderInlineMarkdown(line.slice(2))}</span>
-        </div>
-      );
-    }
-
-    if (!line.trim()) return <div key={index} className="h-3" />;
-    return <p key={index}>{renderInlineMarkdown(line)}</p>;
-  });
-};
-
 export default function MemoComponent({ memo }: MemoProps) {
   const updateMemo = useCanvasStore((state) => state.updateMemo);
   const moveMemo = useCanvasStore((state) => state.moveMemo);
@@ -96,7 +32,6 @@ export default function MemoComponent({ memo }: MemoProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(!memo.content);
 
   const dragStart = useRef({ x: 0, y: 0 });
   const initialSize = useRef({ w: 0, h: 0 });
@@ -120,11 +55,6 @@ export default function MemoComponent({ memo }: MemoProps) {
     setIsResizing(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
     initialSize.current = { w: memo.width, h: memo.height };
-  };
-
-  const insertMarkdown = (prefix: string, suffix = "") => {
-    updateMemo(memo.id, { content: `${memo.content}${memo.content ? '\n' : ''}${prefix}${suffix}` });
-    setIsEditing(true);
   };
 
   useEffect(() => {
@@ -208,36 +138,6 @@ export default function MemoComponent({ memo }: MemoProps) {
         <span className="text-xs text-stone-500 opacity-0 group-hover:opacity-100 transition-opacity select-none">Drag</span>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              insertMarkdown("**bold**");
-            }}
-            className="grid h-7 w-7 place-items-center rounded-full bg-white/45 text-stone-600 hover:bg-white"
-            aria-label="Insert bold markdown"
-          >
-            <Bold size={13} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              insertMarkdown("- ");
-            }}
-            className="grid h-7 w-7 place-items-center rounded-full bg-white/45 text-stone-600 hover:bg-white"
-            aria-label="Insert list markdown"
-          >
-            <List size={13} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              insertMarkdown("- [ ] ");
-            }}
-            className="grid h-7 w-7 place-items-center rounded-full bg-white/45 text-stone-600 hover:bg-white"
-            aria-label="Insert checklist markdown"
-          >
-            <ListChecks size={13} />
-          </button>
           {/* Font Size Dropdown */}
           <div className="relative">
             <button
@@ -285,43 +185,22 @@ export default function MemoComponent({ memo }: MemoProps) {
       </div>
 
       {/* Content Area */}
-      {isEditing ? (
-        <textarea
-          className="relative flex-1 w-full h-full p-3 bg-transparent resize-none focus:outline-none text-stone-800 leading-relaxed font-[var(--app-hand-font)]"
-          value={memo.content}
-          onChange={(e) => updateMemo(memo.id, { content: e.target.value })}
-          onMouseDown={(e) => e.stopPropagation()}
-          onFocus={(event) => {
-            event.currentTarget.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
-          }}
-          onBlur={() => {
-            if (memo.content.trim()) setIsEditing(false);
-          }}
-          placeholder="Type something..."
-          style={{
-            fontSize: memo.fontSize === 'sm' ? '12px' :
-              memo.fontSize === 'l' ? '18px' :
-                memo.fontSize === 'xl' ? '24px' : '14px'
-          }}
-          autoFocus={!memo.content}
-        />
-      ) : (
-        <div
-          className="relative flex-1 overflow-auto p-3 text-stone-800 leading-relaxed font-[var(--app-hand-font)]"
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            setIsEditing(true);
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          style={{
-            fontSize: memo.fontSize === 'sm' ? '12px' :
-              memo.fontSize === 'l' ? '18px' :
-                memo.fontSize === 'xl' ? '24px' : '14px'
-          }}
-        >
-          <div className="space-y-1.5">{renderMarkdownPreview(memo.content)}</div>
-        </div>
-      )}
+      <textarea
+        className="relative flex-1 w-full h-full p-3 bg-transparent resize-none focus:outline-none text-stone-800 leading-relaxed font-[var(--app-hand-font)]"
+        value={memo.content}
+        onChange={(e) => updateMemo(memo.id, { content: e.target.value })}
+        onMouseDown={(e) => e.stopPropagation()}
+        onFocus={(event) => {
+          event.currentTarget.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+        }}
+        placeholder="Type something..."
+        style={{
+          fontSize: memo.fontSize === 'sm' ? '12px' :
+            memo.fontSize === 'l' ? '18px' :
+              memo.fontSize === 'xl' ? '24px' : '14px'
+        }}
+        autoFocus={!memo.content}
+      />
 
       {/* Resize Handle */}
       <div

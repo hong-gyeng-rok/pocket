@@ -1,5 +1,6 @@
 import type { ImageElement, Point, Shape, Stroke } from '@/app/types/canvas';
-import type { CanvasBackground, CanvasTheme, PenStyle, ToolType } from '@/app/store/useToolStore';
+import type { PenStyle } from '@/app/types/canvas';
+import type { CanvasBackground, CanvasTheme, ToolType } from '@/app/store/useToolStore';
 import {
   getObjectBounds,
   getStrokeBounds,
@@ -93,6 +94,17 @@ const seededNoise = (seed: string, index: number) => {
 
 const jitter = (seed: string, index: number, amount: number) => seededNoise(seed, index) * amount;
 
+const normalizeDrawableRect = (shape: Shape | Rect): Rect => {
+  const x = Math.min(shape.x, shape.x + shape.width);
+  const y = Math.min(shape.y, shape.y + shape.height);
+  return {
+    x,
+    y,
+    width: Math.abs(shape.width),
+    height: Math.abs(shape.height),
+  };
+};
+
 const drawSketchLine = (
   ctx: CanvasRenderingContext2D,
   x1: number,
@@ -109,10 +121,7 @@ const drawSketchLine = (
 };
 
 const drawSketchRect = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, seed: string) => {
-  const x = shape.x;
-  const y = shape.y;
-  const width = shape.width;
-  const height = shape.height;
+  const { x, y, width, height } = normalizeDrawableRect(shape);
 
   ctx.beginPath();
   drawSketchLine(ctx, x, y, x + width, y, `${seed}:top`);
@@ -123,10 +132,11 @@ const drawSketchRect = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, seed
 };
 
 const drawSketchEllipse = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, seed: string) => {
-  const cx = shape.x + shape.width / 2;
-  const cy = shape.y + shape.height / 2;
-  const rx = Math.abs(shape.width) / 2;
-  const ry = Math.abs(shape.height) / 2;
+  const { x, y, width, height } = normalizeDrawableRect(shape);
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  const rx = width / 2;
+  const ry = height / 2;
 
   ctx.beginPath();
   for (let i = 0; i <= 32; i++) {
@@ -143,7 +153,7 @@ const drawSketchEllipse = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, s
 const drawFillTexture = (ctx: CanvasRenderingContext2D, shape: Shape, seed: string) => {
   if (!shape.fillColor || shape.fillColor === 'transparent') return;
 
-  const bounds = getObjectBounds(shape);
+  const bounds = normalizeDrawableRect(shape);
   const gap = 13;
   ctx.save();
   ctx.clip();
@@ -506,7 +516,7 @@ export const drawStrokesLayer = (
       ctx.restore();
     }
 
-    drawStrokePath(ctx, stroke, penStyle);
+    drawStrokePath(ctx, stroke, stroke.penStyle ?? penStyle);
   }
 
   if (draftStroke) {

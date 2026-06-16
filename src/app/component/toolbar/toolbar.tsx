@@ -1,7 +1,8 @@
 "use client";
 
 import { useToolStore } from "@/app/store/useToolStore";
-import type { CanvasBackground, CanvasTheme, PenStyle } from "@/app/store/useToolStore";
+import type { CanvasBackground, CanvasTheme } from "@/app/store/useToolStore";
+import type { PenStyle } from "@/app/types/canvas";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import { 
@@ -82,6 +83,7 @@ export default function Toolbar() {
   const [pastStates, setPastStates] = useState<unknown[]>([]);
   const [futureStates, setFutureStates] = useState<unknown[]>([]);
   const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+  const [imageUploadState, setImageUploadState] = useState<"idle" | "uploading" | "fallback" | "error">("idle");
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,8 +107,18 @@ export default function Toolbar() {
     if (!file) return;
 
     try {
+      setImageUploadState("uploading");
       const compressed = await compressImageFile(file);
-      const src = await uploadCanvasImageAsset(compressed.src);
+      let src = compressed.src;
+
+      try {
+        src = await uploadCanvasImageAsset(compressed.src);
+        setImageUploadState("idle");
+      } catch (uploadError) {
+        console.warn("Image asset upload fell back to inline data:", uploadError);
+        setImageUploadState("fallback");
+      }
+
       const maxDisplayWidth = 300;
       const ratio = compressed.width / compressed.height;
       const width = Math.min(compressed.width, maxDisplayWidth);
@@ -125,6 +137,7 @@ export default function Toolbar() {
       });
     } catch (error) {
       console.error("Image upload failed:", error);
+      setImageUploadState("error");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -173,11 +186,11 @@ export default function Toolbar() {
   };
 
   return (
-    <div className="fixed bottom-3 left-1/2 z-50 flex w-[calc(100vw-24px)] max-w-[760px] -translate-x-1/2 flex-col items-center gap-y-2 rounded-2xl border border-stone-200 bg-white/[0.92] p-2 shadow-xl backdrop-blur-md md:bottom-8 md:w-max md:max-w-none md:flex-row md:gap-x-4 md:rounded-full md:p-3">
+    <div className="fixed bottom-3 left-1/2 z-50 flex w-[calc(100vw-24px)] max-w-[980px] -translate-x-1/2 flex-col items-center gap-y-2 rounded-2xl border border-stone-200 bg-white/[0.92] p-2 shadow-xl backdrop-blur-md md:bottom-8 md:p-3">
       {/* Top Row / Left Side */}
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 md:gap-x-4">
+      <div className="flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-2 md:gap-x-3">
         {/* Mode Switcher */}
-        <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-4">
+        <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-3">
           <Tooltip
             label={
               mode === "DRAWING"
@@ -202,7 +215,7 @@ export default function Toolbar() {
         </div>
 
         {/* Tool Group (Dynamic based on Mode) */}
-        <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-4">
+        <div className="flex flex-wrap items-center justify-center gap-2 md:border-r md:border-gray-200 md:pr-3">
           {mode === "DRAWING" ? (
             <>
               <Tooltip label="Hand Tool" shortcut="Space">
@@ -360,27 +373,34 @@ export default function Toolbar() {
             </button>
           </Tooltip>
 
-          {(showAdvancedTools || isAdvancedToolActive) && (
-            <Tooltip label="Add Image">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="min-h-11 min-w-11 p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
-              >
-                <ImageIcon size={20} />
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                className="hidden"
-              />
-            </Tooltip>
-          )}
+          <Tooltip label="Add Image">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={imageUploadState === "uploading"}
+              className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
+                imageUploadState === "uploading"
+                  ? "text-gray-300 cursor-wait"
+                  : imageUploadState === "error"
+                    ? "text-red-500 hover:bg-red-50"
+                    : imageUploadState === "fallback"
+                      ? "text-amber-600 hover:bg-amber-50"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              }`}
+            >
+              <ImageIcon size={20} className={imageUploadState === "uploading" ? "animate-pulse" : ""} />
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/*"
+              className="hidden"
+            />
+          </Tooltip>
         </div>
 
         {/* History Group */}
-        <div className="flex items-center gap-1 md:border-r md:border-gray-200 md:pr-4">
+        <div className="flex items-center gap-1 md:border-r md:border-gray-200 md:pr-3">
           <Tooltip label="Undo" shortcut="Ctrl + Z">
             <button
               onClick={handleUndo}
@@ -448,7 +468,7 @@ export default function Toolbar() {
       <div className="w-full h-px bg-gray-200 md:hidden" />
 
       {/* Bottom Row / Right Side */}
-      <div className="flex w-full flex-wrap items-center justify-center gap-2 md:w-auto md:flex-nowrap">
+      <div className="flex w-full flex-wrap items-center justify-center gap-2">
         {(showAdvancedTools || isAdvancedToolActive) && (
           <div className="flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-stone-100/80 p-1 md:rounded-full">
             <NotebookTabs size={16} className="ml-1 text-stone-500" />
@@ -475,14 +495,18 @@ export default function Toolbar() {
             {penOptions.map((option) => (
               <Tooltip key={option.value} label={option.name}>
                 <button
-                  onClick={() => setPenStyle(option.value)}
-                  className={`min-h-8 rounded-full px-2 text-[11px] font-semibold transition-all ${
+                  onClick={() => {
+                    setPenStyle(option.value);
+                    setMode("DRAWING");
+                    setTool("PEN");
+                  }}
+                  className={`min-h-8 rounded-full px-3 text-[11px] font-semibold transition-all ${
                     penStyle === option.value
                       ? "bg-stone-900 text-white shadow-sm"
                       : "text-stone-600 hover:bg-white/80"
                   }`}
                 >
-                  {option.name[0]}
+                  {option.name}
                 </button>
               </Tooltip>
             ))}

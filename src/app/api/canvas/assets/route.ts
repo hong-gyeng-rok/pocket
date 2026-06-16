@@ -6,8 +6,9 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 
 const ASSET_DIR = path.join(process.cwd(), 'public', 'uploads', 'canvas-assets');
-const DATA_URL_PATTERN = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([a-z0-9+/=]+)$/i;
+const DATA_URL_PATTERN = /^data:(image\/(?:png|jpe?g|webp|gif|avif));base64,([a-z0-9+/=\s]+)$/i;
 const EXTENSIONS: Record<string, string> = {
+  'image/avif': 'avif',
   'image/gif': 'gif',
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     const [, mimeType, base64] = match;
-    const bytes = Buffer.from(base64, 'base64');
+    const bytes = Buffer.from(base64.replace(/\s/g, ''), 'base64');
     const extension = EXTENSIONS[mimeType] ?? 'webp';
     const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 24);
     const filename = `${hash}.${extension}`;

@@ -14,6 +14,25 @@ import type { CanvasContentChunk } from "@/app/types/canvas";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+type CanvasWithOptionalChunks = {
+  id: string;
+  title: string | null;
+  content: unknown;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  chunks?: { chunkKey: string; x: number; y: number; content: unknown }[];
+};
+
+const isMissingCanvasChunkTableError = (error: unknown) => {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2021"
+  );
+};
+
 export async function getCanvases() {
   const session = await auth();
   if (!session?.user?.email) {
@@ -71,28 +90,37 @@ const saveCanvasChunks = async (id: string, content: unknown) => {
   const normalizedContent = normalizeCanvasContent(content);
   const chunks = chunkCanvasContent(normalizedContent);
 
-  await prisma.$transaction([
-    prisma.canvas.update({
+  try {
+    await prisma.$transaction([
+      prisma.canvas.update({
+        where: { id },
+        data: { content: toPrismaJson(toCanvasContent(createEmptyCanvasContent())) },
+      }),
+      prisma.canvasChunk.deleteMany({
+        where: { canvasId: id },
+      }),
+      ...(chunks.length > 0
+        ? [
+            prisma.canvasChunk.createMany({
+              data: chunks.map((chunk) => ({
+                canvasId: id,
+                chunkKey: chunk.id,
+                x: chunk.x,
+                y: chunk.y,
+                content: toPrismaJson(toCanvasContent(chunk)),
+              })),
+            }),
+          ]
+        : []),
+    ]);
+  } catch (error) {
+    if (!isMissingCanvasChunkTableError(error)) throw error;
+
+    await prisma.canvas.update({
       where: { id },
-      data: { content: toPrismaJson(toCanvasContent(createEmptyCanvasContent())) },
-    }),
-    prisma.canvasChunk.deleteMany({
-      where: { canvasId: id },
-    }),
-    ...(chunks.length > 0
-      ? [
-          prisma.canvasChunk.createMany({
-            data: chunks.map((chunk) => ({
-              canvasId: id,
-              chunkKey: chunk.id,
-              x: chunk.x,
-              y: chunk.y,
-              content: toPrismaJson(toCanvasContent(chunk)),
-            })),
-          }),
-        ]
-      : []),
-  ]);
+      data: { content: toPrismaJson(normalizedContent) },
+    });
+  }
 };
 
 const getChunkedCanvasContent = (
@@ -157,14 +185,24 @@ export async function getCanvas(id: string) {
 
   if (!user) return null;
 
-  const canvas = await prisma.canvas.findUnique({
-    where: { id },
-    include: {
-      chunks: {
-        orderBy: [{ x: "asc" }, { y: "asc" }],
+  let canvas: CanvasWithOptionalChunks | null;
+
+  try {
+    canvas = await prisma.canvas.findUnique({
+      where: { id },
+      include: {
+        chunks: {
+          orderBy: [{ x: "asc" }, { y: "asc" }],
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (!isMissingCanvasChunkTableError(error)) throw error;
+
+    canvas = await prisma.canvas.findUnique({
+      where: { id },
+    });
+  }
 
   // 본인 캔버스인지 확인
   if (!canvas || canvas.userId !== user.id) {
@@ -173,7 +211,9 @@ export async function getCanvas(id: string) {
 
   return {
     ...canvas,
-    content: getChunkedCanvasContent(canvas.content, canvas.chunks),
+    content: Array.isArray(canvas.chunks)
+      ? getChunkedCanvasContent(canvas.content, canvas.chunks)
+      : normalizeCanvasContent(canvas.content),
   };
 }
 
