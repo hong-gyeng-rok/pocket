@@ -25,7 +25,7 @@ export default function RootLayout({
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden absolute top-4 left-4 z-10 p-2 rounded-md bg-gray-100/50 backdrop-blur-sm hover:bg-gray-200"
+              className="md:hidden absolute top-4 left-4 z-10 grid min-h-11 min-w-11 place-items-center rounded-full border border-stone-200 bg-white/80 shadow-sm backdrop-blur-sm hover:bg-white"
               aria-label="Open sidebar"
             >
               <Menu size={24} />

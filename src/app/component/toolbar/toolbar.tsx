@@ -1,11 +1,13 @@
 "use client";
 
 import { useToolStore } from "@/app/store/useToolStore";
+import type { CanvasBackground, CanvasTheme, PenStyle } from "@/app/store/useToolStore";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import { 
   Hand, Pen, Eraser, Undo2, Redo2, Image as ImageIcon, LogIn,
-  Square, Circle, Type, MousePointer2, RefreshCw, Minus, MoreHorizontal
+  Square, Circle, Type, MousePointer2, RefreshCw, Minus, MoreHorizontal,
+  LayoutGrid, NotebookTabs, Brush, Eye, EyeOff
 } from "lucide-react";
 import { useEffect, useState, useRef, ReactNode } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
@@ -57,7 +59,22 @@ function Tooltip({ children, label, shortcut }: TooltipProps) {
 
 export default function Toolbar() {
   const { data: session } = useSession();
-  const { tool, mode, color, setTool, setMode, setColor } = useToolStore();
+  const {
+    tool,
+    mode,
+    color,
+    background,
+    penStyle,
+    theme,
+    readOnly,
+    setTool,
+    setMode,
+    setColor,
+    setBackground,
+    setPenStyle,
+    setTheme,
+    setReadOnly,
+  } = useToolStore();
   const addImage = useCanvasStore((state) => state.addImage);
   const cameraX = useCameraStore((state) => state.x);
   const cameraY = useCameraStore((state) => state.y);
@@ -133,13 +150,30 @@ export default function Toolbar() {
 
   const activeColors = mode === 'DRAWING' ? drawingColors : objectColors;
   const isAdvancedToolActive = tool === "CIRCLE" || tool === "ARROW" || tool === "TEXT";
+  const backgroundOptions: { name: string; value: CanvasBackground; swatch: string }[] = [
+    { name: "Plain", value: "plain", swatch: "#ffffff" },
+    { name: "Paper", value: "paper", swatch: "#fbf7ed" },
+    { name: "Dots", value: "dotted", swatch: "#f8f0df" },
+    { name: "Grid", value: "grid", swatch: "#f7efe1" },
+    { name: "Notebook", value: "notebook", swatch: "#f8f2e5" },
+  ];
+  const penOptions: { name: string; value: PenStyle }[] = [
+    { name: "Pencil", value: "pencil" },
+    { name: "Marker", value: "marker" },
+    { name: "Highlighter", value: "highlighter" },
+  ];
+  const themeOptions: { name: string; value: CanvasTheme }[] = [
+    { name: "Clean", value: "clean-paper" },
+    { name: "Warm", value: "warm-notebook" },
+    { name: "Chalk", value: "dark-chalkboard" },
+  ];
 
   const toggleMode = () => {
     setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
   };
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex w-max max-w-[95vw] flex-col items-center gap-y-2 rounded-2xl border border-gray-200 bg-white/90 p-2 shadow-xl backdrop-blur-md md:bottom-8 md:max-w-none md:flex-row md:gap-x-4 md:rounded-full md:p-3">
+    <div className="fixed bottom-3 left-1/2 z-50 flex w-[calc(100vw-24px)] max-w-[760px] -translate-x-1/2 flex-col items-center gap-y-2 rounded-2xl border border-stone-200 bg-white/[0.92] p-2 shadow-xl backdrop-blur-md md:bottom-8 md:w-max md:max-w-none md:flex-row md:gap-x-4 md:rounded-full md:p-3">
       {/* Top Row / Left Side */}
       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 md:gap-x-4">
         {/* Mode Switcher */}
@@ -153,7 +187,7 @@ export default function Toolbar() {
           >
             <button
               onClick={toggleMode}
-              className="p-3 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+              className="min-h-11 min-w-11 p-3 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
             >
               <RefreshCw
                 size={20}
@@ -174,7 +208,7 @@ export default function Toolbar() {
               <Tooltip label="Hand Tool" shortcut="Space">
                 <button
                   onClick={() => setTool("HAND")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "HAND"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -187,7 +221,7 @@ export default function Toolbar() {
               <Tooltip label="Select Tool" shortcut="V">
                 <button
                   onClick={() => setTool("SELECT")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "SELECT"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -202,7 +236,7 @@ export default function Toolbar() {
               <Tooltip label="Pen Tool" shortcut="D">
                 <button
                   onClick={() => setTool("PEN")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "PEN"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -215,7 +249,7 @@ export default function Toolbar() {
               <Tooltip label="Eraser Tool" shortcut="E">
                 <button
                   onClick={() => setTool("ERASER")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "ERASER"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -230,7 +264,7 @@ export default function Toolbar() {
               <Tooltip label="Hand Tool" shortcut="Space">
                 <button
                   onClick={() => setTool("HAND")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "HAND"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -243,7 +277,7 @@ export default function Toolbar() {
               <Tooltip label="Select Tool" shortcut="V">
                 <button
                   onClick={() => setTool("SELECT")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "SELECT"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -258,7 +292,7 @@ export default function Toolbar() {
               <Tooltip label="Rectangle" shortcut="R">
                 <button
                   onClick={() => setTool("RECTANGLE")}
-                  className={`p-3 rounded-full transition-all ${
+                  className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                     tool === "RECTANGLE"
                       ? "bg-gray-900 text-white shadow-md scale-105"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -273,7 +307,7 @@ export default function Toolbar() {
                   <Tooltip label="Circle" shortcut="O">
                     <button
                       onClick={() => setTool("CIRCLE")}
-                      className={`p-3 rounded-full transition-all ${
+                      className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                         tool === "CIRCLE"
                           ? "bg-gray-900 text-white shadow-md scale-105"
                           : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -286,7 +320,7 @@ export default function Toolbar() {
                   <Tooltip label="Arrow" shortcut="A">
                     <button
                       onClick={() => setTool("ARROW")}
-                      className={`p-3 rounded-full transition-all ${
+                      className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                         tool === "ARROW"
                           ? "bg-gray-900 text-white shadow-md scale-105"
                           : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -299,7 +333,7 @@ export default function Toolbar() {
                   <Tooltip label="Text" shortcut="T">
                     <button
                       onClick={() => setTool("TEXT")}
-                      className={`p-3 rounded-full transition-all ${
+                      className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                         tool === "TEXT"
                           ? "bg-gray-900 text-white shadow-md scale-105"
                           : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -316,7 +350,7 @@ export default function Toolbar() {
           <Tooltip label="Advanced Tools">
             <button
               onClick={() => setShowAdvancedTools((value) => !value)}
-              className={`p-3 rounded-full transition-all ${
+              className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                 showAdvancedTools || isAdvancedToolActive
                   ? "bg-gray-900 text-white shadow-md scale-105"
                   : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -330,7 +364,7 @@ export default function Toolbar() {
             <Tooltip label="Add Image">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+                className="min-h-11 min-w-11 p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
               >
                 <ImageIcon size={20} />
               </button>
@@ -351,7 +385,7 @@ export default function Toolbar() {
             <button
               onClick={handleUndo}
               disabled={pastStates.length === 0}
-              className={`p-3 rounded-full transition-all ${
+              className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                 pastStates.length === 0
                   ? "text-gray-300 cursor-not-allowed"
                   : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -365,7 +399,7 @@ export default function Toolbar() {
             <button
               onClick={handleRedo}
               disabled={futureStates.length === 0}
-              className={`p-3 rounded-full transition-all ${
+              className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
                 futureStates.length === 0
                   ? "text-gray-300 cursor-not-allowed"
                   : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -401,7 +435,7 @@ export default function Toolbar() {
             <Tooltip label="Sign in with Google">
               <button
                 onClick={() => signIn("google")}
-                className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+                className="min-h-11 min-w-11 p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
               >
                 <LogIn size={20} />
               </button>
@@ -414,7 +448,88 @@ export default function Toolbar() {
       <div className="w-full h-px bg-gray-200 md:hidden" />
 
       {/* Bottom Row / Right Side */}
-      <div className="flex items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-center gap-2 md:w-auto md:flex-nowrap">
+        {(showAdvancedTools || isAdvancedToolActive) && (
+          <div className="flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-stone-100/80 p-1 md:rounded-full">
+            <NotebookTabs size={16} className="ml-1 text-stone-500" />
+            {backgroundOptions.map((option) => (
+              <Tooltip key={option.value} label={`${option.name} background`}>
+                <button
+                  onClick={() => setBackground(option.value)}
+                  className={`grid h-8 w-8 place-items-center rounded-full border transition-all ${
+                    background === option.value
+                      ? "border-stone-900 bg-white shadow-sm"
+                      : "border-transparent hover:bg-white/80"
+                  }`}
+                  aria-label={`${option.name} background`}
+                >
+                  <span
+                    className="h-5 w-5 rounded-full border border-stone-300"
+                    style={{ backgroundColor: option.swatch }}
+                  />
+                </button>
+              </Tooltip>
+            ))}
+            <span className="mx-1 hidden h-5 w-px bg-stone-300 md:block" />
+            <Brush size={16} className="ml-1 text-stone-500" />
+            {penOptions.map((option) => (
+              <Tooltip key={option.value} label={option.name}>
+                <button
+                  onClick={() => setPenStyle(option.value)}
+                  className={`min-h-8 rounded-full px-2 text-[11px] font-semibold transition-all ${
+                    penStyle === option.value
+                      ? "bg-stone-900 text-white shadow-sm"
+                      : "text-stone-600 hover:bg-white/80"
+                  }`}
+                >
+                  {option.name[0]}
+                </button>
+              </Tooltip>
+            ))}
+            <span className="mx-1 hidden h-5 w-px bg-stone-300 md:block" />
+            {themeOptions.map((option) => (
+              <Tooltip key={option.value} label={`${option.name} theme`}>
+                <button
+                  onClick={() => {
+                    setTheme(option.value);
+                    if (option.value === "dark-chalkboard") setBackground("grid");
+                    if (option.value === "warm-notebook") setBackground("notebook");
+                    if (option.value === "clean-paper") setBackground("paper");
+                  }}
+                  className={`min-h-8 rounded-full px-2 text-[11px] font-semibold transition-all ${
+                    theme === option.value
+                      ? "bg-stone-900 text-white shadow-sm"
+                      : "text-stone-600 hover:bg-white/80"
+                  }`}
+                >
+                  {option.name}
+                </button>
+              </Tooltip>
+            ))}
+            <Tooltip label={readOnly ? "Disable read mode" : "Read mode"}>
+              <button
+                onClick={() => setReadOnly(!readOnly)}
+                className={`grid min-h-8 min-w-8 place-items-center rounded-full transition-all ${
+                  readOnly ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-white/80"
+                }`}
+                aria-label="Toggle read mode"
+              >
+                {readOnly ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+            </Tooltip>
+          </div>
+        )}
+        {!showAdvancedTools && !isAdvancedToolActive && (
+          <Tooltip label="Backgrounds">
+            <button
+              onClick={() => setShowAdvancedTools(true)}
+              className="min-h-11 min-w-11 rounded-full text-stone-500 transition-all hover:bg-stone-100 hover:text-stone-800"
+              aria-label="Show background options"
+            >
+              <LayoutGrid size={20} className="mx-auto" />
+            </button>
+          </Tooltip>
+        )}
         {/* Color Group */}
         {activeColors.map((c) => (
           <Tooltip key={c.value} label={c.name}>

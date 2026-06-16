@@ -33,6 +33,7 @@ import {
 } from '@/lib/canvasTransform';
 import { createSpatialIndex, createSpatialItems, createStrokeSpatialIndex, createStrokeSpatialItems } from '@/lib/spatialIndex';
 import {
+  drawCanvasBackground,
   drawImagesLayer,
   drawShapesLayer,
   drawStrokesLayer,
@@ -57,6 +58,9 @@ export default function Canvas() {
   // Zustand State
   const currentTool = useToolStore((state) => state.tool);
   const currentColor = useToolStore((state) => state.color);
+  const currentBackground = useToolStore((state) => state.background);
+  const currentTheme = useToolStore((state) => state.theme);
+  const readOnly = useToolStore((state) => state.readOnly);
 
   const strokes = useCanvasStore((state) => state.strokes);
   const shapes = useCanvasStore((state) => state.shapes);
@@ -106,10 +110,26 @@ export default function Canvas() {
   const [tempArrow, setTempArrow] = useState<{ x1: number, y1: number, x2: number, y2: number } | null>(null);
   const snapTarget = useRef<ObjectHandle | null>(null); // To store snap handle
   const historyPaused = useRef(false);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressWorldPos = useRef<{ x: number; y: number } | null>(null);
+  const [gestureToast, setGestureToast] = useState<string | null>(null);
 
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
 
   useCanvasKeyboard();
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    longPressWorldPos.current = null;
+  }, []);
+
+  const showGestureToast = useCallback((message: string) => {
+    setGestureToast(message);
+    window.setTimeout(() => setGestureToast(null), 1100);
+  }, []);
 
   const requestRender = useCallback((dirtyRect?: Rect | null) => {
     if (dirtyRect === undefined || dirtyRect === null) {
@@ -204,16 +224,15 @@ export default function Canvas() {
       context.clearRect(0, 0, size.width, size.height);
     }
 
-    context.fillStyle = '#ffffff';
-    context.fillRect(
-      dirtyRect?.x ?? 0,
-      dirtyRect?.y ?? 0,
-      dirtyRect?.width ?? size.width,
-      dirtyRect?.height ?? size.height
-    );
-
     const camera = useCameraStore.getState();
     const toolState = useToolStore.getState();
+    drawCanvasBackground(context, {
+      background: toolState.background,
+      theme: toolState.theme,
+      camera,
+      size,
+    });
+
     const viewportBounds = getViewportBounds({ ...camera, width: size.width, height: size.height });
     const visibleStrokes = strokeSpatialIndex.queryRect(viewportBounds).map((item) => item.stroke);
 
@@ -255,8 +274,10 @@ export default function Canvas() {
             color: toolState.color,
             size: toolState.strokeWidth,
             tool: toolState.tool,
+            penStyle: toolState.penStyle,
           }
         : null,
+      penStyle: toolState.penStyle,
     });
 
     drawToolCursor(context, {
@@ -292,6 +313,10 @@ export default function Canvas() {
   }, [render, requestRender]);
 
   useEffect(() => {
+    requestRender();
+  }, [currentBackground, currentTheme, requestRender]);
+
+  useEffect(() => {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
@@ -300,8 +325,10 @@ export default function Canvas() {
   // Event Handlers
   const handlePointerDown = (e: React.PointerEvent) => {
     const tool = useToolStore.getState().tool;
+    const isReadOnly = useToolStore.getState().readOnly;
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
+    clearLongPressTimer();
 
     // 1. Update Active Pointers
     trackPointerDown(pointerGesture.current, e.pointerId, { x: mouseX, y: mouseY });
@@ -322,6 +349,38 @@ export default function Canvas() {
     if (pointerGesture.current.activePointers.size > 1) {
       requestRender();
       return;
+    }
+
+    if (isReadOnly) {
+      isDragging.current = true;
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      requestRender();
+      return;
+    }
+
+    if (
+      e.pointerType === 'touch' &&
+      (tool === 'SELECT' || tool === 'HAND') &&
+      !hitTest(worldPos.x, worldPos.y)
+    ) {
+      longPressWorldPos.current = worldPos;
+      longPressTimer.current = window.setTimeout(() => {
+        const position = longPressWorldPos.current;
+        if (!position || pointerGesture.current.hasMovedSignificantly) return;
+
+        addMemo({
+          id: crypto.randomUUID(),
+          content: "",
+          x: position.x - 110,
+          y: position.y - 80,
+          width: 240,
+          height: 180,
+          color: "#fef3c7",
+        });
+        showGestureToast("New note");
+        clearLongPressTimer();
+        requestRender();
+      }, 560);
     }
 
     // 1. Check Handle Click first (Priority)
@@ -351,7 +410,7 @@ export default function Canvas() {
         const handlePoint = getResizeHandlePoint(obj);
 
         const dist = Math.hypot(handlePoint.x - worldPos.x, handlePoint.y - worldPos.y);
-        if (dist <= 8) {
+        if (dist <= (e.pointerType === 'touch' ? 18 : 8)) {
           isResizingShape.current = true;
           resizingShapeId.current = id;
           resizeAnchor.current = { x: bounds.x, y: bounds.y };
@@ -415,6 +474,12 @@ export default function Canvas() {
     const worldPos = screenToWorld(mouseX, mouseY);
     const previousMousePos = currentMousePos.current;
     currentMousePos.current = { x: mouseX, y: mouseY };
+    if (
+      previousMousePos &&
+      Math.hypot(previousMousePos.x - mouseX, previousMousePos.y - mouseY) > 8
+    ) {
+      clearLongPressTimer();
+    }
     const isCursorOnlyMove = (
       !isDragging.current &&
       !isCreatingShape.current &&
@@ -443,6 +508,7 @@ export default function Canvas() {
 
     // 2. Handle Multi-touch (Pinch & Pan)
     if (pointerGesture.current.activePointers.size === 2) {
+      clearLongPressTimer();
       const { distance, center } = getTwoPointerGesture(Array.from(pointerGesture.current.activePointers.values()));
 
       // Pinch to Zoom
@@ -471,6 +537,7 @@ export default function Canvas() {
     }
 
     if (pointerGesture.current.activePointers.size > 1) {
+      clearLongPressTimer();
       requestRender();
       return;
     }
@@ -623,6 +690,7 @@ export default function Canvas() {
     hitTest,
     hoverHandles,
     isDrawing,
+    clearLongPressTimer,
     moveMemo,
     pan,
     screenToWorld,
@@ -636,6 +704,7 @@ export default function Canvas() {
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     const tool = useToolStore.getState().tool;
     const color = useToolStore.getState().color;
+    const isReadOnly = useToolStore.getState().readOnly;
     const { x: mouseX, y: mouseY } = getMousePos(e);
     const worldPos = screenToWorld(mouseX, mouseY);
 
@@ -647,11 +716,13 @@ export default function Canvas() {
       if (tapAction) {
         useCanvasStore.temporal.getState()[tapAction]();
         pointerGesture.current.isUndoRedoTriggered = true;
+        showGestureToast(tapAction === 'undo' ? 'Undo' : 'Redo');
       }
     }
 
     // 2. Cleanup
-    pointerGesture.current.activePointers.delete(e.pointerId);
+      pointerGesture.current.activePointers.delete(e.pointerId);
+      clearLongPressTimer();
     if (pointerGesture.current.activePointers.size === 0) {
       resetPointerGesture(pointerGesture.current);
     } else if (pointerGesture.current.activePointers.size === 1) {
@@ -670,6 +741,12 @@ export default function Canvas() {
       setSelectionBox(null);
       setTempArrow(null);
       endDrawing();
+      requestRender();
+      return;
+    }
+
+    if (isReadOnly) {
+      isDragging.current = false;
       requestRender();
       return;
     }
@@ -766,7 +843,7 @@ export default function Canvas() {
     endDrawing();
     isDragging.current = false;
     requestRender();
-  }, [screenToWorld, getMousePos, hitTest, findObject, addShape, setSelectedIds, addMemo, endDrawing, selectionBox, tempShape, tempArrow, spatialIndex, strokeSpatialIndex, requestRender]);
+  }, [screenToWorld, getMousePos, hitTest, findObject, addShape, setSelectedIds, addMemo, endDrawing, selectionBox, tempShape, tempArrow, spatialIndex, strokeSpatialIndex, requestRender, clearLongPressTimer, showGestureToast]);
 
   const handlePointerLeave = (e: React.PointerEvent) => {
     pointerGesture.current.activePointers.delete(e.pointerId);
@@ -822,6 +899,16 @@ export default function Canvas() {
 
   return (
     <article className="w-screen h-screen overflow-hidden bg-gray-100 touch-none select-none">
+      {readOnly && (
+        <div className="pointer-events-none absolute right-4 top-4 z-40 rounded-full border border-stone-200 bg-white/85 px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm backdrop-blur">
+          Read only
+        </div>
+      )}
+      {gestureToast && (
+        <div className="pointer-events-none absolute left-1/2 top-5 z-40 -translate-x-1/2 rounded-full bg-stone-900/80 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          {gestureToast}
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}

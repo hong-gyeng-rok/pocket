@@ -4,6 +4,7 @@ import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import MemoComponent from "@/app/component/memo/Memo";
 import SelectionMenu from "@/app/component/canvas/SelectionMenu";
+import MobileSelectionActionBar from "@/app/component/canvas/MobileSelectionActionBar";
 import type { SaveStatus } from "@/app/types/saveStatus";
 
 const saveStatusLabel: Record<SaveStatus, string> = {
@@ -68,6 +69,7 @@ export default function OverlayLayer({ saveStatus }: OverlayLayerProps) {
         {/* Context Menu for Selection */}
         <SelectionMenu />
       </div>
+      <MobileSelectionActionBar />
       <SaveStatusIndicator status={saveStatus} />
     </div>
   );

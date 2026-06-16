@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Lock, Unlock, Group, Ungroup, Trash2 } from "lucide-react";
+import { Lock, Unlock, Group, Ungroup, Trash2, Copy } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import type { ImageElement, Memo, Point, Shape, Stroke } from "@/app/types/canvas";
@@ -23,6 +23,9 @@ export default function SelectionMenu() {
   const removeImage = useCanvasStore((state) => state.removeImage);
   const removeStroke = useCanvasStore((state) => state.removeStroke);
   const setSelectedIds = useCanvasStore((state) => state.setSelectedIds);
+  const addMemo = useCanvasStore((state) => state.addMemo);
+  const addImage = useCanvasStore((state) => state.addImage);
+  const addShape = useCanvasStore((state) => state.addShape);
 
   const zoom = useCameraStore((state) => state.zoom);
 
@@ -97,6 +100,7 @@ export default function SelectionMenu() {
   if (!bounds) return null;
 
   const handleDelete = () => {
+      if (!window.confirm("Delete selected objects?")) return;
       selectedIds.forEach(id => {
           if (shapes.some(s => s.id === id)) removeShape(id);
           if (memos.some(m => m.id === id)) removeMemo(id);
@@ -104,6 +108,29 @@ export default function SelectionMenu() {
           if (strokes.some(s => s.id === id)) removeStroke(id);
       });
       setSelectedIds([]);
+  };
+
+  const handleDuplicate = () => {
+      const nextIds: string[] = [];
+      selectedIds.forEach(id => {
+          const shape = shapes.find(s => s.id === id);
+          const memo = memos.find(m => m.id === id);
+          const image = images.find(i => i.id === id);
+          const nextId = crypto.randomUUID();
+          if (shape) {
+              addShape({ ...shape, id: nextId, x: shape.x + 28, y: shape.y + 28, startId: undefined, endId: undefined, isLocked: false });
+              nextIds.push(nextId);
+          }
+          if (memo) {
+              addMemo({ ...memo, id: nextId, x: memo.x + 28, y: memo.y + 28, isLocked: false });
+              nextIds.push(nextId);
+          }
+          if (image) {
+              addImage({ ...image, id: nextId, x: image.x + 28, y: image.y + 28, isLocked: false });
+              nextIds.push(nextId);
+          }
+      });
+      if (nextIds.length > 0) setSelectedIds(nextIds);
   };
 
   // Logic to show group/delete section
@@ -130,6 +157,13 @@ export default function SelectionMenu() {
           title={bounds.isAllLocked ? "Unlock" : "Lock"}
         >
           {bounds.isAllLocked ? <Lock size={16} /> : <Unlock size={16} />}
+        </button>
+        <button
+          onClick={handleDuplicate}
+          className="p-2 rounded hover:bg-gray-100 text-gray-700"
+          title="Duplicate"
+        >
+          <Copy size={16} />
         </button>
 
         {/* Separator only if right section exists */}

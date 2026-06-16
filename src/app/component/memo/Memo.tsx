@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Memo, useCanvasStore } from "@/app/store/useCanvasStore";
+import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useCanvasStore } from "@/app/store/useCanvasStore";
+import type { Memo } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Bold, List, ListChecks } from "lucide-react";
 
 interface MemoProps {
   memo: Memo;
@@ -16,6 +17,75 @@ const SIZE_LABELS = {
   xl: "XL"
 };
 
+const getMemoRotation = (id: string) => {
+  const seed = [...id].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return ((seed % 7) - 3) * 0.35;
+};
+
+const renderInlineMarkdown = (text: string) => {
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
+
+  return parts.map((part, index) => {
+    const bold = part.match(/^\*\*([^*]+)\*\*$/);
+    if (bold) return <strong key={`${part}-${index}`}>{bold[1]}</strong>;
+
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      return (
+        <a
+          key={`${part}-${index}`}
+          href={link[2]}
+          target="_blank"
+          rel="noreferrer"
+          className="underline decoration-stone-500 decoration-wavy underline-offset-2"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {link[1]}
+        </a>
+      );
+    }
+
+    return part;
+  });
+};
+
+const renderMarkdownPreview = (content: string): ReactNode => {
+  if (!content.trim()) {
+    return <span className="text-stone-500/70">Type something...</span>;
+  }
+
+  return content.split('\n').map((line, index) => {
+    if (line.startsWith('# ')) {
+      return <h3 key={index} className="mb-2 text-lg font-bold leading-snug">{renderInlineMarkdown(line.slice(2))}</h3>;
+    }
+
+    const checkbox = line.match(/^- \[([ xX])\] (.*)$/);
+    if (checkbox) {
+      const checked = checkbox[1].toLowerCase() === 'x';
+      return (
+        <div key={index} className="flex items-start gap-2">
+          <span className={`mt-1 grid h-4 w-4 shrink-0 place-items-center rounded border border-stone-600/50 ${checked ? 'bg-stone-700 text-white' : 'bg-white/50'}`}>
+            {checked ? '✓' : ''}
+          </span>
+          <span className={checked ? 'line-through opacity-70' : ''}>{renderInlineMarkdown(checkbox[2])}</span>
+        </div>
+      );
+    }
+
+    if (line.startsWith('- ')) {
+      return (
+        <div key={index} className="flex items-start gap-2">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-stone-600/70" />
+          <span>{renderInlineMarkdown(line.slice(2))}</span>
+        </div>
+      );
+    }
+
+    if (!line.trim()) return <div key={index} className="h-3" />;
+    return <p key={index}>{renderInlineMarkdown(line)}</p>;
+  });
+};
+
 export default function MemoComponent({ memo }: MemoProps) {
   const updateMemo = useCanvasStore((state) => state.updateMemo);
   const moveMemo = useCanvasStore((state) => state.moveMemo);
@@ -26,6 +96,7 @@ export default function MemoComponent({ memo }: MemoProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(!memo.content);
 
   const dragStart = useRef({ x: 0, y: 0 });
   const initialSize = useRef({ w: 0, h: 0 });
@@ -49,6 +120,11 @@ export default function MemoComponent({ memo }: MemoProps) {
     setIsResizing(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
     initialSize.current = { w: memo.width, h: memo.height };
+  };
+
+  const insertMarkdown = (prefix: string, suffix = "") => {
+    updateMemo(memo.id, { content: `${memo.content}${memo.content ? '\n' : ''}${prefix}${suffix}` });
+    setIsEditing(true);
   };
 
   useEffect(() => {
@@ -102,7 +178,7 @@ export default function MemoComponent({ memo }: MemoProps) {
 
   return (
     <div
-      className="absolute flex flex-col shadow-lg rounded overflow-hidden pointer-events-auto transition-shadow hover:shadow-xl group"
+      className="absolute flex flex-col overflow-hidden rounded-[3px] border border-black/5 shadow-[0_10px_24px_rgba(70,55,30,0.16)] pointer-events-auto transition-shadow hover:shadow-[0_14px_32px_rgba(70,55,30,0.2)] group md:rotate-[var(--memo-rotation)]"
       style={{
         left: memo.x,
         top: memo.y,
@@ -110,16 +186,58 @@ export default function MemoComponent({ memo }: MemoProps) {
         height: memo.height,
         backgroundColor: memo.color,
         transform: 'translate(0, 0)',
+        ['--memo-rotation' as string]: `${getMemoRotation(memo.id)}deg`,
       }}
     >
+      <div className="pointer-events-none absolute inset-0 opacity-40 mix-blend-multiply [background-image:radial-gradient(circle_at_1px_1px,rgba(90,70,35,0.15)_1px,transparent_0)] [background-size:18px_18px]" />
+      {(memo.decoration ?? 'tape') === 'tape' && (
+        <div className="pointer-events-none absolute left-1/2 top-0 h-5 w-20 -translate-x-1/2 -translate-y-2 rotate-[-2deg] rounded-sm bg-amber-100/65 shadow-sm" />
+      )}
+      {memo.decoration === 'pin' && (
+        <div className="pointer-events-none absolute left-1/2 top-2 h-4 w-4 -translate-x-1/2 rounded-full bg-red-400 shadow-sm ring-2 ring-red-200/70" />
+      )}
+      {memo.decoration === 'label' && (
+        <div className="pointer-events-none absolute left-3 top-2 h-4 w-14 rounded-full bg-white/35" />
+      )}
+
       {/* Header (Drag Handle) */}
       <div
-        className="h-8 bg-black/5 cursor-move flex items-center justify-between px-2 shrink-0 relative"
+        className="h-9 bg-black/5 cursor-move flex items-center justify-between px-2 shrink-0 relative"
         onMouseDown={handleMouseDown}
       >
-        <span className="text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity select-none">Drag To Move</span>
+        <span className="text-xs text-stone-500 opacity-0 group-hover:opacity-100 transition-opacity select-none">Drag</span>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              insertMarkdown("**bold**");
+            }}
+            className="grid h-7 w-7 place-items-center rounded-full bg-white/45 text-stone-600 hover:bg-white"
+            aria-label="Insert bold markdown"
+          >
+            <Bold size={13} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              insertMarkdown("- ");
+            }}
+            className="grid h-7 w-7 place-items-center rounded-full bg-white/45 text-stone-600 hover:bg-white"
+            aria-label="Insert list markdown"
+          >
+            <List size={13} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              insertMarkdown("- [ ] ");
+            }}
+            className="grid h-7 w-7 place-items-center rounded-full bg-white/45 text-stone-600 hover:bg-white"
+            aria-label="Insert checklist markdown"
+          >
+            <ListChecks size={13} />
+          </button>
           {/* Font Size Dropdown */}
           <div className="relative">
             <button
@@ -127,7 +245,7 @@ export default function MemoComponent({ memo }: MemoProps) {
                 e.stopPropagation();
                 setIsDropdownOpen(!isDropdownOpen);
               }}
-              className="h-6 px-1.5 flex items-center gap-0.5 text-[10px] font-bold text-gray-600 bg-white/50 hover:bg-white rounded border border-transparent hover:border-gray-200 transition-all"
+              className="h-7 px-1.5 flex items-center gap-0.5 text-[10px] font-bold text-stone-600 bg-white/45 hover:bg-white rounded-full border border-transparent hover:border-stone-200 transition-all"
             >
               {SIZE_LABELS[memo.fontSize || 'm']}
               <ChevronDown size={10} />
@@ -159,7 +277,7 @@ export default function MemoComponent({ memo }: MemoProps) {
               e.stopPropagation();
               removeMemo(memo.id);
             }}
-            className="p-1 rounded-full hover:bg-black/10 text-gray-500 hover:text-red-500 transition-colors"
+            className="grid h-7 w-7 place-items-center rounded-full hover:bg-black/10 text-stone-500 hover:text-red-500 transition-colors"
           >
             <X size={14} />
           </button>
@@ -167,19 +285,43 @@ export default function MemoComponent({ memo }: MemoProps) {
       </div>
 
       {/* Content Area */}
-      <textarea
-        className="flex-1 w-full h-full p-3 bg-transparent resize-none focus:outline-none text-gray-800 leading-relaxed"
-        value={memo.content}
-        onChange={(e) => updateMemo(memo.id, { content: e.target.value })}
-        onMouseDown={(e) => e.stopPropagation()}
-        placeholder="Type something..."
-        style={{
-          fontSize: memo.fontSize === 'sm' ? '12px' :
-            memo.fontSize === 'l' ? '18px' :
-              memo.fontSize === 'xl' ? '24px' : '14px'
-        }}
-        autoFocus={!memo.content}
-      />
+      {isEditing ? (
+        <textarea
+          className="relative flex-1 w-full h-full p-3 bg-transparent resize-none focus:outline-none text-stone-800 leading-relaxed font-[var(--app-hand-font)]"
+          value={memo.content}
+          onChange={(e) => updateMemo(memo.id, { content: e.target.value })}
+          onMouseDown={(e) => e.stopPropagation()}
+          onFocus={(event) => {
+            event.currentTarget.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+          }}
+          onBlur={() => {
+            if (memo.content.trim()) setIsEditing(false);
+          }}
+          placeholder="Type something..."
+          style={{
+            fontSize: memo.fontSize === 'sm' ? '12px' :
+              memo.fontSize === 'l' ? '18px' :
+                memo.fontSize === 'xl' ? '24px' : '14px'
+          }}
+          autoFocus={!memo.content}
+        />
+      ) : (
+        <div
+          className="relative flex-1 overflow-auto p-3 text-stone-800 leading-relaxed font-[var(--app-hand-font)]"
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            setIsEditing(true);
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          style={{
+            fontSize: memo.fontSize === 'sm' ? '12px' :
+              memo.fontSize === 'l' ? '18px' :
+                memo.fontSize === 'xl' ? '24px' : '14px'
+          }}
+        >
+          <div className="space-y-1.5">{renderMarkdownPreview(memo.content)}</div>
+        </div>
+      )}
 
       {/* Resize Handle */}
       <div

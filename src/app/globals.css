@@ -5,6 +5,7 @@
   --foreground: #171717;
   --app-font-sans: Arial, Helvetica, sans-serif;
   --app-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --app-hand-font: "Comic Sans MS", "Bradley Hand", "Segoe Print", cursive;
 }
 
 @theme inline {

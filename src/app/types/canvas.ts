@@ -34,6 +34,7 @@ export interface Memo {
   height: number;
   color: string;
   fontSize?: 'sm' | 'm' | 'l' | 'xl';
+  decoration?: 'tape' | 'pin' | 'label';
   groupId?: string;
   isLocked?: boolean;
 }
@@ -130,6 +131,12 @@ const asFontSize = (value: unknown): Memo['fontSize'] => {
   return value === 'sm' || value === 'm' || value === 'l' || value === 'xl'
     ? value
     : undefined;
+};
+
+const asMemoDecoration = (value: unknown): Memo['decoration'] => {
+  return value === 'tape' || value === 'pin' || value === 'label'
+    ? value
+    : 'tape';
 };
 
 const asHandleType = (value: unknown): HandleType | undefined => {
@@ -255,6 +262,7 @@ const normalizeMemo = (memo: unknown): Memo | undefined => {
     height: Math.max(1, asNumber(memo.height, DEFAULT_MEMO_HEIGHT)),
     color: asString(memo.color, '#FEF08A'),
     fontSize: asFontSize(memo.fontSize),
+    decoration: asMemoDecoration(memo.decoration),
     groupId: asOptionalString(memo.groupId),
     isLocked: asOptionalBoolean(memo.isLocked),
   };

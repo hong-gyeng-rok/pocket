@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { HardDrive, Plus } from "lucide-react";
+import { HardDrive, Plus, X } from "lucide-react";
 import { getCanvases, createCanvas } from "@/app/actions/canvas";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -102,13 +102,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <h1 className="text-xl font-bold text-gray-800">Pocket</h1>
-          <button
-            className="p-1 rounded-md hover:bg-gray-200 transition-colors"
-            aria-label="New Canvas"
-            onClick={handleCreateCanvas}
-          >
-            <Plus size={20} className="text-gray-600" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              className="grid min-h-11 min-w-11 place-items-center rounded-md hover:bg-gray-200 transition-colors"
+              aria-label="New Canvas"
+              onClick={handleCreateCanvas}
+            >
+              <Plus size={20} className="text-gray-600" />
+            </button>
+            <button
+              className="grid min-h-11 min-w-11 place-items-center rounded-md hover:bg-gray-200 transition-colors md:hidden"
+              aria-label="Close sidebar"
+              onClick={onClose}
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+          </div>
         </div>
 
         {/* List */}
