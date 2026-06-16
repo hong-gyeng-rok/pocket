@@ -15,6 +15,37 @@ export const createDraftRect = (start: Point, current: Point): Rect => ({
   height: current.y - start.y,
 });
 
+export const createCircleDraftRect = (start: Point, current: Point): Rect => {
+  const dx = current.x - start.x;
+  const dy = current.y - start.y;
+  const size = Math.max(Math.abs(dx), Math.abs(dy));
+
+  return {
+    x: start.x,
+    y: start.y,
+    width: Math.sign(dx || 1) * size,
+    height: Math.sign(dy || 1) * size,
+  };
+};
+
+const isLightShapeFill = (color: string): boolean => {
+  const value = color.trim().toLowerCase();
+  if (value === 'transparent') return true;
+  if (value === '#fff' || value === '#ffffff') return true;
+
+  const hex = value.match(/^#([0-9a-f]{6})$/);
+  if (!hex) return false;
+
+  const red = Number.parseInt(hex[1].slice(0, 2), 16);
+  const green = Number.parseInt(hex[1].slice(2, 4), 16);
+  const blue = Number.parseInt(hex[1].slice(4, 6), 16);
+  return (red * 299 + green * 587 + blue * 114) / 1000 > 210;
+};
+
+export const getShapeStrokeColor = (fillColor: string): string => (
+  isLightShapeFill(fillColor) ? '#4b5563' : fillColor
+);
+
 export const createResizeUpdate = (
   object: ResolvedCanvasObject,
   anchor: Point,

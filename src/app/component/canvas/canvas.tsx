@@ -26,9 +26,11 @@ import {
 import {
   createArrowShape,
   createArrowTemp,
+  createCircleDraftRect,
   createDraftRect,
   createResizeUpdate,
   getDelta,
+  getShapeStrokeColor,
   toShapeType,
 } from '@/lib/canvasTransform';
 import { createSpatialIndex, createSpatialItems, createStrokeSpatialIndex, createStrokeSpatialItems } from '@/lib/spatialIndex';
@@ -389,7 +391,7 @@ export default function Canvas() {
           return dist <= 20;
     });
 
-    if (clickedHandle) {
+    if (tool === 'SELECT' && clickedHandle) {
       isCreatingShape.current = false;
       isCreatingArrow.current = true;
       arrowStartHandle.current = clickedHandle;
@@ -676,7 +678,10 @@ export default function Canvas() {
       pointerGesture.current.hasMovedSignificantly = true;
     }
     else if (isCreatingShape.current) {
-      setTempShape(createDraftRect(shapeStartPos.current, worldPos));
+      const nextShape = useToolStore.getState().tool === 'CIRCLE'
+        ? createCircleDraftRect(shapeStartPos.current, worldPos)
+        : createDraftRect(shapeStartPos.current, worldPos);
+      setTempShape(nextShape);
       pointerGesture.current.hasMovedSignificantly = true;
     }
     else {
@@ -820,8 +825,8 @@ export default function Canvas() {
           width: tempShape.width,
           height: tempShape.height,
           fillColor: color,
-          strokeColor: isArrow ? color : 'transparent',
-          strokeWidth: isArrow ? 4 : 0
+          strokeColor: isArrow ? color : getShapeStrokeColor(color),
+          strokeWidth: isArrow ? 4 : 2
         });
       }
       isCreatingShape.current = false;
