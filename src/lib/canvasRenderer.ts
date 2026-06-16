@@ -8,7 +8,6 @@ import {
   rectsIntersect,
 } from '@/lib/canvasGeometry';
 import type { ObjectHandle, Rect } from '@/lib/canvasGeometry';
-import { getShapeStrokeColor } from '@/lib/canvasTransform';
 
 export interface CanvasSize {
   width: number;
@@ -174,16 +173,12 @@ const drawFilledSketchRect = (ctx: CanvasRenderingContext2D, shape: Shape, seed:
   drawSketchRect(ctx, shape, seed);
   ctx.fill();
   drawFillTexture(ctx, shape, seed);
-  drawSketchRect(ctx, shape, `${seed}:outline`);
-  ctx.stroke();
 };
 
 const drawFilledSketchEllipse = (ctx: CanvasRenderingContext2D, shape: Shape, seed: string) => {
   drawSketchEllipse(ctx, shape, seed);
   ctx.fill();
   drawFillTexture(ctx, shape, seed);
-  drawSketchEllipse(ctx, shape, `${seed}:outline`);
-  ctx.stroke();
 };
 
 const drawSketchArrow = (
@@ -405,7 +400,7 @@ export const drawShapesLayer = (
     ctx.fillStyle = shape.fillColor || 'transparent';
     ctx.strokeStyle = shape.strokeColor !== 'transparent' && shape.strokeColor
       ? shape.strokeColor
-      : getShapeStrokeColor(shape.fillColor || '#000000');
+      : shape.fillColor || '#000000';
     ctx.lineWidth = Math.max(shape.strokeWidth || 2, 2);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -455,11 +450,9 @@ export const drawShapesLayer = (
     if (currentTool === 'RECTANGLE') {
       drawSketchRect(ctx, tempShape, 'draft');
       ctx.fill();
-      ctx.stroke();
     } else if (currentTool === 'CIRCLE') {
       drawSketchEllipse(ctx, tempShape, 'draft');
       ctx.fill();
-      ctx.stroke();
     } else if (currentTool === 'ARROW') {
       drawSketchArrow(
         ctx,

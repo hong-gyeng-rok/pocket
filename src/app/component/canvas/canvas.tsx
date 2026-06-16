@@ -30,7 +30,6 @@ import {
   createDraftRect,
   createResizeUpdate,
   getDelta,
-  getShapeStrokeColor,
   toShapeType,
 } from '@/lib/canvasTransform';
 import { createSpatialIndex, createSpatialItems, createStrokeSpatialIndex, createStrokeSpatialItems } from '@/lib/spatialIndex';
@@ -825,8 +824,8 @@ export default function Canvas() {
           width: tempShape.width,
           height: tempShape.height,
           fillColor: color,
-          strokeColor: isArrow ? color : getShapeStrokeColor(color),
-          strokeWidth: isArrow ? 4 : 2
+          strokeColor: isArrow ? color : 'transparent',
+          strokeWidth: isArrow ? 4 : 0
         });
       }
       isCreatingShape.current = false;
