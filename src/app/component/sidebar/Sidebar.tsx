@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { HardDrive, Plus } from "lucide-react";
 import { getCanvases, createCanvas } from "@/app/actions/canvas";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import SidebarItem from "./SidebarItem";
 
 interface CanvasItem {
@@ -27,6 +28,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { data: session } = useSession();
   const [canvases, setCanvases] = useState<CanvasItem[]>([]);
   const router = useRouter();
 
@@ -41,11 +43,29 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   useEffect(() => {
-    fetchCanvases();
+    let isMounted = true;
+
+    getCanvases()
+      .then((data) => {
+        if (isMounted) setCanvases(data);
+      })
+      .catch((error) => {
+        console.error("Failed to fetch canvases:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // 새 캔버스 생성
   const handleCreateCanvas = async () => {
+    if (!session) {
+      router.push("/");
+      onClose();
+      return;
+    }
+
     try {
       const newCanvas = await createCanvas();
       await fetchCanvases();
@@ -97,6 +117,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             Recent
           </div>
           <ul className="space-y-0.5" onClick={handleItemClick}>
+            {!session && (
+              <li>
+                <button
+                  onClick={() => router.push("/")}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  <HardDrive size={16} className="text-gray-400" />
+                  <span className="truncate">Local canvas</span>
+                </button>
+              </li>
+            )}
             {canvases.map((canvas) => (
               <SidebarItem
                 key={canvas.id}
@@ -116,4 +147,3 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     </>
   );
 }
-

@@ -1,12 +1,17 @@
 import Canvas from "@component/canvas/canvas"
 import Toolbar from "@component/toolbar/toolbar"
 import OverlayLayer from "@component/canvas/OverlayLayer"
+import type { SaveStatus } from "@/app/types/saveStatus"
 
-export default function CanvasLayout() {
+interface CanvasLayoutProps {
+  saveStatus?: SaveStatus
+}
+
+export default function CanvasLayout({ saveStatus = "saved" }: CanvasLayoutProps) {
   return (
     <>
       <Canvas />
-      <OverlayLayer />
+      <OverlayLayer saveStatus={saveStatus} />
       <Toolbar />
     </>
   )

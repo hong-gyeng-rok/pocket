@@ -10,7 +10,7 @@ export const authConfig = {
   ],
   // 페이지 접근 제어 로직 (필요시 활성화)
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
+    authorized() {
       // 예: 로그인 여부 확인
       // const isLoggedIn = !!auth?.user
       // const isOnDashboard = nextUrl.pathname.startsWith('/dashboard')

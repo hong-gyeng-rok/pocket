@@ -1,7 +1,7 @@
-import CanvasLayout from "@layout/canvasLayout"
+import LocalCanvasInitializer from "@/app/component/canvas/LocalCanvasInitializer"
 
 export default function HomeView() {
   return (
-    <CanvasLayout />
+    <LocalCanvasInitializer />
   )
 }

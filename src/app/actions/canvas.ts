@@ -1,9 +1,18 @@
 "use server";
 
 import { auth } from "@/auth";
+import {
+  chunkCanvasContent,
+  createEmptyCanvasContent,
+  flattenCanvasChunks,
+  isCanvasContentEmpty,
+  normalizeCanvasContent,
+  toCanvasContent,
+  toPrismaJson,
+} from "@/app/types/canvas";
+import type { CanvasContentChunk } from "@/app/types/canvas";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 export async function getCanvases() {
   const session = await auth();
@@ -49,13 +58,93 @@ export async function createCanvas() {
   const newCanvas = await prisma.canvas.create({
     data: {
       userId: user.id,
-      content: { strokes: [], memos: [], images: [] }, // 초기 빈 데이터 구조 명시
+      content: toPrismaJson(createEmptyCanvasContent()),
       title: null,
     },
   });
 
   revalidatePath("/");
   return newCanvas;
+}
+
+const saveCanvasChunks = async (id: string, content: unknown) => {
+  const normalizedContent = normalizeCanvasContent(content);
+  const chunks = chunkCanvasContent(normalizedContent);
+
+  await prisma.$transaction([
+    prisma.canvas.update({
+      where: { id },
+      data: { content: toPrismaJson(toCanvasContent(createEmptyCanvasContent())) },
+    }),
+    prisma.canvasChunk.deleteMany({
+      where: { canvasId: id },
+    }),
+    ...(chunks.length > 0
+      ? [
+          prisma.canvasChunk.createMany({
+            data: chunks.map((chunk) => ({
+              canvasId: id,
+              chunkKey: chunk.id,
+              x: chunk.x,
+              y: chunk.y,
+              content: toPrismaJson(toCanvasContent(chunk)),
+            })),
+          }),
+        ]
+      : []),
+  ]);
+};
+
+const getChunkedCanvasContent = (
+  fallbackContent: unknown,
+  chunks: { chunkKey: string; x: number; y: number; content: unknown }[]
+) => {
+  if (chunks.length === 0) return normalizeCanvasContent(fallbackContent);
+
+  const normalizedChunks: CanvasContentChunk[] = chunks.map((chunk) => {
+    const content = normalizeCanvasContent(chunk.content);
+
+    return {
+      id: chunk.chunkKey,
+      x: chunk.x,
+      y: chunk.y,
+      strokes: content.strokes,
+      memos: content.memos,
+      images: content.images,
+      shapes: content.shapes,
+    };
+  });
+
+  return flattenCanvasChunks(normalizedChunks);
+};
+
+export async function importLocalCanvas(content: unknown) {
+  const session = await auth();
+  if (!session?.user?.email) throw new Error("Unauthorized");
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+  });
+
+  if (!user) throw new Error("User not found");
+
+  const normalizedContent = normalizeCanvasContent(content);
+  if (isCanvasContentEmpty(normalizedContent)) {
+    return null;
+  }
+
+  const canvas = await prisma.canvas.create({
+    data: {
+      userId: user.id,
+      content: toPrismaJson(createEmptyCanvasContent()),
+      title: "Imported local canvas",
+    },
+  });
+
+  await saveCanvasChunks(canvas.id, normalizedContent);
+  revalidatePath("/");
+
+  return { id: canvas.id };
 }
 
 export async function getCanvas(id: string) {
@@ -70,6 +159,11 @@ export async function getCanvas(id: string) {
 
   const canvas = await prisma.canvas.findUnique({
     where: { id },
+    include: {
+      chunks: {
+        orderBy: [{ x: "asc" }, { y: "asc" }],
+      },
+    },
   });
 
   // 본인 캔버스인지 확인
@@ -77,10 +171,13 @@ export async function getCanvas(id: string) {
     return null;
   }
 
-  return canvas;
+  return {
+    ...canvas,
+    content: getChunkedCanvasContent(canvas.content, canvas.chunks),
+  };
 }
 
-export async function saveCanvas(id: string, content: any, title?: string) {
+export async function saveCanvas(id: string, content: unknown, title?: string) {
   const session = await auth();
   if (!session?.user?.email) throw new Error("Unauthorized");
 
@@ -98,13 +195,14 @@ export async function saveCanvas(id: string, content: any, title?: string) {
     throw new Error("Canvas not found or access denied");
   }
 
-  await prisma.canvas.update({
-    where: { id },
-    data: {
-      content,
-      ...(title !== undefined && { title }),
-    },
-  });
+  await saveCanvasChunks(id, content);
+
+  if (title !== undefined) {
+    await prisma.canvas.update({
+      where: { id },
+      data: { title },
+    });
+  }
 
   if (title !== undefined) {
     revalidatePath("/"); 

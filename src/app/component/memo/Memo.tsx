@@ -33,7 +33,10 @@ export default function MemoComponent({ memo }: MemoProps) {
 
   // Keep latest memo in ref to avoid effect re-runs
   const memoRef = useRef(memo);
-  memoRef.current = memo;
+
+  useEffect(() => {
+    memoRef.current = memo;
+  }, [memo]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent canvas pan

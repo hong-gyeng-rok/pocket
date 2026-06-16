@@ -4,11 +4,12 @@ import { useToolStore } from "@/app/store/useToolStore";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import { 
-  Hand, Pen, Eraser, Undo2, Redo2, Image as ImageIcon, LogIn, LogOut, 
-  Square, Circle, Type, MousePointer2, RefreshCw, Minus 
+  Hand, Pen, Eraser, Undo2, Redo2, Image as ImageIcon, LogIn,
+  Square, Circle, Type, MousePointer2, RefreshCw, Minus, MoreHorizontal
 } from "lucide-react";
 import { useEffect, useState, useRef, ReactNode } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { compressImageFile, uploadCanvasImageAsset } from "@/lib/imageCompression";
 
 // Tooltip Component for better reusability and clean code
 interface TooltipProps {
@@ -16,6 +17,23 @@ interface TooltipProps {
   label: string;
   shortcut?: string;
 }
+
+interface TemporalSnapshot {
+  pastStates: unknown[];
+  futureStates: unknown[];
+}
+
+interface TemporalStore {
+  subscribe: (listener: (state: TemporalSnapshot) => void) => () => void;
+  getState: () => {
+    undo: () => void;
+    redo: () => void;
+  };
+}
+
+const getTemporalStore = () => {
+  return (useCanvasStore as unknown as { temporal?: TemporalStore }).temporal;
+};
 
 function Tooltip({ children, label, shortcut }: TooltipProps) {
   return (
@@ -44,16 +62,17 @@ export default function Toolbar() {
   const cameraX = useCameraStore((state) => state.x);
   const cameraY = useCameraStore((state) => state.y);
   
-  const [pastStates, setPastStates] = useState<any[]>([]);
-  const [futureStates, setFutureStates] = useState<any[]>([]);
+  const [pastStates, setPastStates] = useState<unknown[]>([]);
+  const [futureStates, setFutureStates] = useState<unknown[]>([]);
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const temporal = (useCanvasStore as any).temporal;
+    const temporal = getTemporalStore();
     if (!temporal) return;
 
-    const unsubscribe = temporal.subscribe((state: any) => {
+    const unsubscribe = temporal.subscribe((state) => {
         setPastStates(state.pastStates);
         setFutureStates(state.futureStates);
     });
@@ -61,39 +80,37 @@ export default function Toolbar() {
     return () => unsubscribe();
   }, []);
 
-  const handleUndo = () => (useCanvasStore as any).temporal.getState().undo();
-  const handleRedo = () => (useCanvasStore as any).temporal.getState().redo();
+  const handleUndo = () => getTemporalStore()?.getState().undo();
+  const handleRedo = () => getTemporalStore()?.getState().redo();
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const src = event.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const maxWidth = 300;
-        const ratio = img.width / img.height;
-        const width = Math.min(img.width, maxWidth);
-        const height = width / ratio;
-        const x = cameraX + 100;
-        const y = cameraY + 100;
+    try {
+      const compressed = await compressImageFile(file);
+      const src = await uploadCanvasImageAsset(compressed.src);
+      const maxDisplayWidth = 300;
+      const ratio = compressed.width / compressed.height;
+      const width = Math.min(compressed.width, maxDisplayWidth);
+      const height = width / ratio;
+      const x = cameraX + 100;
+      const y = cameraY + 100;
 
-        addImage({
-          id: crypto.randomUUID(),
-          src,
-          x,
-          y,
-          width,
-          height,
-          alt: file.name,
-        });
-      };
-      img.src = src;
-    };
-    reader.readAsDataURL(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+      addImage({
+        id: crypto.randomUUID(),
+        src,
+        x,
+        y,
+        width,
+        height,
+        alt: file.name,
+      });
+    } catch (error) {
+      console.error("Image upload failed:", error);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const drawingColors = [
@@ -115,6 +132,7 @@ export default function Toolbar() {
   ];
 
   const activeColors = mode === 'DRAWING' ? drawingColors : objectColors;
+  const isAdvancedToolActive = tool === "CIRCLE" || tool === "ARROW" || tool === "TEXT";
 
   const toggleMode = () => {
     setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
@@ -250,63 +268,81 @@ export default function Toolbar() {
                 </button>
               </Tooltip>
 
-              <Tooltip label="Circle" shortcut="O">
-                <button
-                  onClick={() => setTool("CIRCLE")}
-                  className={`p-3 rounded-full transition-all ${
-                    tool === "CIRCLE"
-                      ? "bg-gray-900 text-white shadow-md scale-105"
-                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                  }`}
-                >
-                  <Circle size={20} />
-                </button>
-              </Tooltip>
+              {(showAdvancedTools || isAdvancedToolActive) && (
+                <>
+                  <Tooltip label="Circle" shortcut="O">
+                    <button
+                      onClick={() => setTool("CIRCLE")}
+                      className={`p-3 rounded-full transition-all ${
+                        tool === "CIRCLE"
+                          ? "bg-gray-900 text-white shadow-md scale-105"
+                          : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      }`}
+                    >
+                      <Circle size={20} />
+                    </button>
+                  </Tooltip>
 
-              <Tooltip label="Arrow" shortcut="A">
-                <button
-                  onClick={() => setTool("ARROW")}
-                  className={`p-3 rounded-full transition-all ${
-                    tool === "ARROW"
-                      ? "bg-gray-900 text-white shadow-md scale-105"
-                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                  }`}
-                >
-                  <Minus size={20} className="rotate-45" />
-                </button>
-              </Tooltip>
+                  <Tooltip label="Arrow" shortcut="A">
+                    <button
+                      onClick={() => setTool("ARROW")}
+                      className={`p-3 rounded-full transition-all ${
+                        tool === "ARROW"
+                          ? "bg-gray-900 text-white shadow-md scale-105"
+                          : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      }`}
+                    >
+                      <Minus size={20} className="rotate-45" />
+                    </button>
+                  </Tooltip>
 
-              <Tooltip label="Text" shortcut="T">
-                <button
-                  onClick={() => setTool("TEXT")}
-                  className={`p-3 rounded-full transition-all ${
-                    tool === "TEXT"
-                      ? "bg-gray-900 text-white shadow-md scale-105"
-                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                  }`}
-                >
-                  <Type size={20} />
-                </button>
-              </Tooltip>
+                  <Tooltip label="Text" shortcut="T">
+                    <button
+                      onClick={() => setTool("TEXT")}
+                      className={`p-3 rounded-full transition-all ${
+                        tool === "TEXT"
+                          ? "bg-gray-900 text-white shadow-md scale-105"
+                          : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      }`}
+                    >
+                      <Type size={20} />
+                    </button>
+                  </Tooltip>
+                </>
+              )}
             </>
           )}
 
-          {/* Image Upload Button (Common) */}
-          <Tooltip label="Add Image">
+          <Tooltip label="Advanced Tools">
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+              onClick={() => setShowAdvancedTools((value) => !value)}
+              className={`p-3 rounded-full transition-all ${
+                showAdvancedTools || isAdvancedToolActive
+                  ? "bg-gray-900 text-white shadow-md scale-105"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              }`}
             >
-              <ImageIcon size={20} />
+              <MoreHorizontal size={20} />
             </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*"
-              className="hidden"
-            />
           </Tooltip>
+
+          {(showAdvancedTools || isAdvancedToolActive) && (
+            <Tooltip label="Add Image">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-3 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+              >
+                <ImageIcon size={20} />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                className="hidden"
+              />
+            </Tooltip>
+          )}
         </div>
 
         {/* History Group */}
@@ -349,10 +385,10 @@ export default function Toolbar() {
                 className="p-1 rounded-full overflow-hidden border-2 border-transparent hover:border-gray-300 transition-all"
               >
                 {session.user?.image ? (
-                  <img
-                    src={session.user.image}
-                    alt="User Avatar"
-                    className="w-8 h-8 rounded-full"
+                  <span
+                    aria-label="User Avatar"
+                    className="block w-8 h-8 rounded-full bg-center bg-cover"
+                    style={{ backgroundImage: `url(${session.user.image})` }}
                   />
                 ) : (
                   <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
@@ -411,4 +447,3 @@ export default function Toolbar() {
     </div>
   );
 }
-

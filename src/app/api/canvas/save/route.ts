@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import {
+  chunkCanvasContent,
+  createEmptyCanvasContent,
+  normalizeCanvasContent,
+  toCanvasContent,
+  toPrismaJson,
+} from "@/app/types/canvas";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -31,11 +38,31 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Update
-    await prisma.canvas.update({
-      where: { id },
-      data: { content },
-    });
+    const normalizedContent = normalizeCanvasContent(content);
+    const chunks = chunkCanvasContent(normalizedContent);
+
+    await prisma.$transaction([
+      prisma.canvas.update({
+        where: { id },
+        data: { content: toPrismaJson(toCanvasContent(createEmptyCanvasContent())) },
+      }),
+      prisma.canvasChunk.deleteMany({
+        where: { canvasId: id },
+      }),
+      ...(chunks.length > 0
+        ? [
+            prisma.canvasChunk.createMany({
+              data: chunks.map((chunk) => ({
+                canvasId: id,
+                chunkKey: chunk.id,
+                x: chunk.x,
+                y: chunk.y,
+                content: toPrismaJson(toCanvasContent(chunk)),
+              })),
+            }),
+          ]
+        : []),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

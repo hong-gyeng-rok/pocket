@@ -1,60 +1,81 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import CanvasLayout from "@/app/layout/canvasLayout";
+import { createEmptyCanvasContent, normalizeCanvasContent, toCanvasContent } from "@/app/types/canvas";
+import type { CanvasContent } from "@/app/types/canvas";
+import type { SaveStatus } from "@/app/types/saveStatus";
 
 interface CanvasInitializerProps {
   canvasId: string;
-  initialContent: any;
+  initialContent: unknown;
   title: string | null;
 }
 
 export default function CanvasInitializer({
   canvasId,
   initialContent,
-  title,
 }: CanvasInitializerProps) {
-  const { setStrokes, strokes, memos, images, shapes } = useCanvasStore();
+  const { strokes, memos, images, shapes } = useCanvasStore();
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const isInitialized = useRef(false); 
+  const saveRequestId = useRef(0);
   
   // 1. 초기 데이터 로드
   useEffect(() => {
     isInitialized.current = false;
-    if (initialContent) {
-      const content = initialContent as any;
-      
-      // Zustand persist rehydration might happen automatically from localStorage.
-      // We need to decide strategy: Server vs Local.
-      // For now, Server wins on page load to ensure sync across devices.
-      // But we could check timestamps if we stored them.
-      
-      useCanvasStore.setState({
-        strokes: content.strokes || [],
-        memos: content.memos || [],
-        images: content.images || [],
-        shapes: content.shapes || [],
-      });
-      
-      setTimeout(() => {
-         isInitialized.current = true;
-      }, 500); // Slightly longer buffer
-    } else {
-      isInitialized.current = true;
-    }
+    localStorage.removeItem("pocket-canvas-storage");
+
+    const content = initialContent
+      ? normalizeCanvasContent(initialContent)
+      : createEmptyCanvasContent();
+
+    useCanvasStore.setState({
+      strokes: content.strokes,
+      memos: content.memos,
+      images: content.images,
+      shapes: content.shapes,
+      selectedIds: [],
+    });
+
+    const readyTimer = setTimeout(() => {
+       isInitialized.current = true;
+    }, 500);
+
+    return () => clearTimeout(readyTimer);
   }, [canvasId, initialContent]);
 
   // Save Function (Reusable)
-  const saveToBackend = useCallback(async (data: any) => {
+  const saveToBackend = useCallback(async (data: CanvasContent) => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setSaveStatus("offline");
+        return;
+      }
+
+      const currentRequestId = saveRequestId.current + 1;
+      saveRequestId.current = currentRequestId;
+      setSaveStatus("saving");
+
       try {
-          await fetch('/api/canvas/save', {
+          const response = await fetch('/api/canvas/save', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: canvasId, content: data }),
               keepalive: true, // Key for saving on close
           });
-          console.log("Saved to backend");
+
+          if (!response.ok) {
+            throw new Error(`Save request failed with ${response.status}`);
+          }
+
+          if (saveRequestId.current === currentRequestId) {
+            setSaveStatus("saved");
+          }
       } catch (err) {
+          if (saveRequestId.current === currentRequestId) {
+            setSaveStatus("error");
+          }
           console.error("Save failed", err);
       }
   }, [canvasId]);
@@ -63,13 +84,37 @@ export default function CanvasInitializer({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // 최신 상태를 Ref에 담아두어야 Event Listener 안에서 접근 가능 (Closure 문제 해결)
-  const stateRef = useRef({ strokes, memos, images, shapes });
+  const stateRef = useRef(toCanvasContent({ strokes, memos, images, shapes }));
   useEffect(() => {
-      stateRef.current = { strokes, memos, images, shapes };
+      stateRef.current = toCanvasContent({ strokes, memos, images, shapes });
   }, [strokes, memos, images, shapes]);
 
   useEffect(() => {
+      const handleOffline = () => setSaveStatus("offline");
+      const handleOnline = () => {
+          if (isInitialized.current) {
+              saveToBackend(stateRef.current);
+          } else {
+              setSaveStatus("saved");
+          }
+      };
+
+      if (!navigator.onLine) {
+          setSaveStatus("offline");
+      }
+
+      window.addEventListener('offline', handleOffline);
+      window.addEventListener('online', handleOnline);
+
+      return () => {
+          window.removeEventListener('offline', handleOffline);
+          window.removeEventListener('online', handleOnline);
+      };
+  }, [saveToBackend]);
+
+  useEffect(() => {
     if (!isInitialized.current) return;
+    setSaveStatus("pending");
 
     // Debounce Save (Background sync)
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -107,6 +152,5 @@ export default function CanvasInitializer({
       };
   }, [saveToBackend]);
 
-  return <CanvasLayout />;
+  return <CanvasLayout saveStatus={saveStatus} />;
 }
-

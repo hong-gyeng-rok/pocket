@@ -2,22 +2,32 @@ import { useEffect, useState } from 'react';
 import { useCanvasStore } from '@/app/store/useCanvasStore';
 import { useToolStore } from '@/app/store/useToolStore';
 
+interface TemporalStore {
+  getState: () => {
+    undo: () => void;
+    redo: () => void;
+  };
+}
+
+const getTemporalStore = () => {
+  return (useCanvasStore as unknown as { temporal?: TemporalStore }).temporal;
+};
+
+const DRAWING_COLORS = ["#000000", "#ef4444", "#3b82f6"];
+const OBJECT_COLORS = [
+  "#000000", "#ffffff", "#FECACA", "#FED7AA", "#FEF08A", "#BBF7D0", "#BFDBFE", "#E9D5FF", "#FBCFE8"
+];
+
 export const useKeyboardShortcuts = () => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
-  
-  // Get undo/redo from temporal store
-  const temporal = (useCanvasStore as any).temporal;
-  const undo = temporal ? temporal.getState().undo : () => {};
-  const redo = temporal ? temporal.getState().redo : () => {};
-  
+
   const { setTool, setMode, mode, setColor, color } = useToolStore();
 
-  const drawingColors = ["#000000", "#ef4444", "#3b82f6"];
-  const objectColors = [
-    "#000000", "#ffffff", "#FECACA", "#FED7AA", "#FEF08A", "#BBF7D0", "#BFDBFE", "#E9D5FF", "#FBCFE8"
-  ];
-
   useEffect(() => {
+    const temporal = getTemporalStore();
+    const undo = temporal ? temporal.getState().undo : () => {};
+    const redo = temporal ? temporal.getState().redo : () => {};
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore inputs
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement).isContentEditable) {
@@ -55,7 +65,7 @@ export const useKeyboardShortcuts = () => {
           
           // Color Cycle (C)
           if (key === 'c') {
-              const activeColors = mode === 'DRAWING' ? drawingColors : objectColors;
+              const activeColors = mode === 'DRAWING' ? DRAWING_COLORS : OBJECT_COLORS;
               const currentIndex = activeColors.indexOf(color);
               let nextIndex = 0;
               
@@ -99,7 +109,7 @@ export const useKeyboardShortcuts = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [mode, isSpacePressed, undo, redo, setTool, setMode, setColor, color]);
+  }, [mode, isSpacePressed, setTool, setMode, setColor, color]);
 
   return { isSpacePressed };
 };

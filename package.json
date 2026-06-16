@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "measure:canvas-memory": "node --expose-gc scripts/measure-canvas-memory.mjs",
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -18,7 +20,6 @@
     "pg": "^8.16.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "zundo": "^2.3.0",
     "zustand": "^5.0.9"
   },
   "devDependencies": {

@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Lock, Unlock, Group, Ungroup, Trash2, Copy } from "lucide-react";
+import { Lock, Unlock, Group, Ungroup, Trash2 } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
+import type { ImageElement, Memo, Point, Shape, Stroke } from "@/app/types/canvas";
+
+type BoundedCanvasObject = Shape | Memo | ImageElement;
 
 export default function SelectionMenu() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
@@ -32,7 +35,7 @@ export default function SelectionMenu() {
     let lockedCount = 0;
     let groupedCount = 0;
 
-    const processItem = (item: any) => {
+    const processItem = (item: BoundedCanvasObject) => {
         if (!item) return;
         foundAny = true;
         
@@ -53,10 +56,10 @@ export default function SelectionMenu() {
         if (item.groupId) groupedCount++;
     };
 
-    const processStroke = (stroke: any) => {
+    const processStroke = (stroke: Stroke) => {
         if (!stroke || stroke.points.length === 0) return;
         foundAny = true;
-        stroke.points.forEach((p: any) => {
+        stroke.points.forEach((p: Point) => {
             minX = Math.min(minX, p.x);
             minY = Math.min(minY, p.y);
             maxX = Math.max(maxX, p.x);

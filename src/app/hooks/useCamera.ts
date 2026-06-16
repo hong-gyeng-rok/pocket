@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useCameraStore } from '@/app/store/useCameraStore';
 
 // Adapter hook to maintain compatibility with existing components

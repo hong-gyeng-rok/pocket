@@ -25,7 +25,7 @@ export default function ImageComponent({ image }: ImageProps) {
     if (image.width && image.height) {
       aspectRatio.current = image.width / image.height;
     }
-  }, []); // Run once on mount (or when image dimensions are known/loaded)
+  }, [image.width, image.height]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent canvas pan
@@ -104,6 +104,7 @@ export default function ImageComponent({ image }: ImageProps) {
       onMouseDown={handleMouseDown}
     >
       {/* Image Content */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img 
         src={image.src} 
         alt={image.alt || "Canvas Image"} 

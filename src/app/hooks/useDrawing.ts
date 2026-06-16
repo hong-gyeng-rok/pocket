@@ -1,20 +1,14 @@
 import { useRef, useCallback } from 'react';
 import { useToolStore } from '@/app/store/useToolStore';
 import { useCanvasStore, Stroke, Point } from '@/app/store/useCanvasStore';
-
-// Helper: Calculate distance from point P to line segment AB
-const distanceToSegment = (p: Point, a: Point, b: Point) => {
-  const l2 = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
-  if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-  
-  let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
-  t = Math.max(0, Math.min(1, t));
-  
-  return Math.hypot(
-    p.x - (a.x + t * (b.x - a.x)),
-    p.y - (a.y + t * (b.y - a.y))
-  );
-};
+import {
+  STROKE_POINT_MIN_DISTANCE,
+  createStrokeBounds,
+  distanceToSegment,
+  getStrokeBounds,
+  pointInRect,
+  simplifyStrokePoints,
+} from '@/lib/canvasGeometry';
 
 export const useDrawing = (
   screenToWorld: (x: number, y: number) => { x: number, y: number }
@@ -27,33 +21,24 @@ export const useDrawing = (
   const removeStroke = useCanvasStore((state) => state.removeStroke);
   const addStroke = useCanvasStore((state) => state.addStroke);
 
-  const startDrawing = useCallback((x: number, y: number) => {
-    isDrawing.current = true;
-    const tool = useToolStore.getState().tool;
-
-    if (tool === 'PEN') {
-      const worldPos = screenToWorld(x, y);
-      currentStrokePoints.current = [worldPos];
-    } else if (tool === 'ERASER') {
-       // Eraser logic is handled in continueDrawing (mousemove)
-       // But we can also erase on single click (mousedown)
-       eraseAt(x, y);
-    }
-  }, [screenToWorld]);
-
   const eraseAt = useCallback((x: number, y: number) => {
     const worldPos = screenToWorld(x, y);
     const strokes = useCanvasStore.getState().strokes;
     const eraserRadius = 10; // Eraser effective radius
+    const eraserBounds = {
+      x: worldPos.x - eraserRadius,
+      y: worldPos.y - eraserRadius,
+      width: eraserRadius * 2,
+      height: eraserRadius * 2,
+    };
 
     // Iterate backwards to delete top-most strokes first (optional UI preference)
     for (let i = strokes.length - 1; i >= 0; i--) {
         const stroke = strokes[i];
         let hit = false;
 
-        // Bounding Box Check (Optimization)
-        // If the stroke is far away, don't check every point
-        // (Simple implementation skipped for brevity, but recommended for large datasets)
+        const strokeBounds = getStrokeBounds(stroke, eraserRadius + stroke.size / 2);
+        if (!strokeBounds || !pointInRect(worldPos, strokeBounds)) continue;
 
         // Point-to-Segment Check
         for (let j = 0; j < stroke.points.length - 1; j++) {
@@ -68,12 +53,30 @@ export const useDrawing = (
             }
         }
 
+        if (!hit && stroke.points.length === 1) {
+            hit = pointInRect(stroke.points[0], eraserBounds);
+        }
+
         if (hit) {
             removeStroke(stroke.id);
             // Don't break if we want to erase multiple overlapping strokes at once
         }
     }
   }, [screenToWorld, removeStroke]);
+
+  const startDrawing = useCallback((x: number, y: number) => {
+    isDrawing.current = true;
+    const tool = useToolStore.getState().tool;
+
+    if (tool === 'PEN') {
+      const worldPos = screenToWorld(x, y);
+      currentStrokePoints.current = [worldPos];
+    } else if (tool === 'ERASER') {
+       // Eraser logic is handled in continueDrawing (mousemove)
+       // But we can also erase on single click (mousedown)
+       eraseAt(x, y);
+    }
+  }, [screenToWorld, eraseAt]);
 
   const continueDrawing = useCallback((x: number, y: number) => {
     if (!isDrawing.current) return;
@@ -86,7 +89,7 @@ export const useDrawing = (
         
         if (lastPoint) {
             const dist = Math.hypot(worldPos.x - lastPoint.x, worldPos.y - lastPoint.y);
-            if (dist > 1) {
+            if (dist > STROKE_POINT_MIN_DISTANCE) {
                 currentStrokePoints.current.push(worldPos);
             }
         }
@@ -102,12 +105,14 @@ export const useDrawing = (
     
     // Only save PEN strokes. Eraser just removes existing ones immediately.
     if (toolState.tool === 'PEN' && currentStrokePoints.current.length >= 1) {
+        const simplifiedPoints = simplifyStrokePoints(currentStrokePoints.current);
         const newStroke: Stroke = {
             id: crypto.randomUUID(),
             tool: 'PEN',
             color: toolState.color,
             size: toolState.strokeWidth,
-            points: [...currentStrokePoints.current],
+            points: simplifiedPoints,
+            bounds: createStrokeBounds(simplifiedPoints),
             createdAt: Date.now(),
         };
         addStroke(newStroke);
@@ -117,36 +122,11 @@ export const useDrawing = (
     currentStrokePoints.current = [];
   }, [addStroke]);
 
-  // Pure rendering logic for a single stroke
-  const renderStroke = useCallback((
-    ctx: CanvasRenderingContext2D, 
-    stroke: Stroke | { points: Point[], color: string, size: number, tool: string }
-  ) => {
-    if (stroke.points.length < 2) return;
-    
-    // Skip rendering 'ERASER' strokes because we don't store them anymore 
-    // (except potentially the one being drawn, but eraser has no path)
-    if (stroke.tool === 'ERASER') return;
-        
-    ctx.beginPath();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.size;
-
-    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-    for (let i = 1; i < stroke.points.length; i++) {
-        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-    }
-    ctx.stroke();
-  }, []);
-
   return {
     isDrawing,
     currentStrokePoints,
     startDrawing,
     continueDrawing,
-    endDrawing,
-    renderStroke
+    endDrawing
   };
 };
