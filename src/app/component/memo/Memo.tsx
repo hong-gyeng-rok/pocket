@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import type { Memo } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, GripHorizontal } from "lucide-react";
 
 interface MemoProps {
   memo: Memo;
@@ -44,21 +44,23 @@ export default function MemoComponent({ memo }: MemoProps) {
     memoRef.current = memo;
   }, [memo]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent canvas pan
+  const handleDragStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
   };
 
-  const handleResizeStart = (e: React.MouseEvent) => {
+  const handleResizeStart = (e: React.PointerEvent) => {
     e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setIsResizing(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
     initialSize.current = { w: memo.width, h: memo.height };
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const currentMemo = memoRef.current;
 
       if (isDragging) {
@@ -81,7 +83,7 @@ export default function MemoComponent({ memo }: MemoProps) {
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       setIsDragging(false);
       setIsResizing(false);
       if (historyPaused.current) {
@@ -91,13 +93,15 @@ export default function MemoComponent({ memo }: MemoProps) {
     };
 
     if (isDragging || isResizing) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
     }
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
       // Safety cleanup
       if (historyPaused.current) {
         useCanvasStore.temporal.getState().resume();
@@ -139,12 +143,15 @@ export default function MemoComponent({ memo }: MemoProps) {
 
       {/* Header (Drag Handle) */}
       <div
-        className="h-9 bg-black/5 cursor-move flex items-center justify-between px-2 shrink-0 relative"
-        onMouseDown={handleMouseDown}
+        className="relative flex h-11 shrink-0 cursor-move touch-none items-center justify-between bg-black/5 px-2 md:h-9"
+        onPointerDown={handleDragStart}
       >
-        <span className="text-xs text-stone-500 opacity-0 group-hover:opacity-100 transition-opacity select-none">Drag</span>
+        <span className="flex items-center gap-1 text-xs font-medium text-stone-600 opacity-100 transition-opacity select-none md:opacity-0 md:group-hover:opacity-100">
+          <GripHorizontal size={16} />
+          Move
+        </span>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
           {/* Font Size Dropdown */}
           <div className="relative">
             <button
@@ -152,7 +159,7 @@ export default function MemoComponent({ memo }: MemoProps) {
                 e.stopPropagation();
                 setIsDropdownOpen(!isDropdownOpen);
               }}
-              className="h-7 px-1.5 flex items-center gap-0.5 text-[10px] font-bold text-stone-600 bg-white/45 hover:bg-white rounded-full border border-transparent hover:border-stone-200 transition-all"
+              className="flex h-9 min-w-9 items-center justify-center gap-0.5 rounded-full border border-stone-200 bg-white/70 px-2 text-[11px] font-bold text-stone-700 transition-all hover:bg-white md:h-7 md:min-w-0 md:px-1.5 md:text-[10px]"
             >
               {SIZE_LABELS[memo.fontSize || 'm']}
               <ChevronDown size={10} />
@@ -168,7 +175,7 @@ export default function MemoComponent({ memo }: MemoProps) {
                       updateMemo(memo.id, { fontSize: size });
                       setIsDropdownOpen(false);
                     }}
-                    className={`px-3 py-1 text-[10px] font-bold text-left hover:bg-gray-100 ${(memo.fontSize || 'm') === size ? 'text-blue-600 bg-blue-50' : 'text-gray-700'
+                    className={`px-4 py-2 text-xs font-bold text-left hover:bg-gray-100 md:px-3 md:py-1 md:text-[10px] ${(memo.fontSize || 'm') === size ? 'text-blue-600 bg-blue-50' : 'text-gray-700'
                       }`}
                   >
                     {SIZE_LABELS[size]}
@@ -184,7 +191,7 @@ export default function MemoComponent({ memo }: MemoProps) {
               e.stopPropagation();
               removeMemo(memo.id);
             }}
-            className="grid h-7 w-7 place-items-center rounded-full hover:bg-black/10 text-stone-500 hover:text-red-500 transition-colors"
+            className="grid h-9 w-9 place-items-center rounded-full text-stone-500 transition-colors hover:bg-black/10 hover:text-red-500 md:h-7 md:w-7"
           >
             <X size={14} />
           </button>
@@ -211,10 +218,10 @@ export default function MemoComponent({ memo }: MemoProps) {
 
       {/* Resize Handle */}
       <div
-        className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize flex items-end justify-end p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-        onMouseDown={handleResizeStart}
+        className="absolute bottom-0 right-0 flex h-10 w-10 cursor-nwse-resize touch-none items-end justify-end p-2 opacity-100 transition-opacity md:h-4 md:w-4 md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
+        onPointerDown={handleResizeStart}
       >
-        <div className="w-2 h-2 border-r-2 border-b-2 border-gray-400/50 rounded-br-sm"></div>
+        <div className="h-4 w-4 rounded-br-sm border-b-4 border-r-4 border-gray-500/60 md:h-2 md:w-2 md:border-b-2 md:border-r-2 md:border-gray-400/50"></div>
       </div>
     </div>
   );

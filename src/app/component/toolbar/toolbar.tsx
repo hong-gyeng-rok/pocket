@@ -180,15 +180,16 @@ export default function Toolbar() {
     { name: "Warm", value: "warm-notebook" },
     { name: "Chalk", value: "dark-chalkboard" },
   ];
+  const showOptionsPanel = showAdvancedTools || isAdvancedToolActive;
 
   const toggleMode = () => {
     setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
   };
 
   return (
-    <div className="fixed bottom-3 left-1/2 z-50 flex w-[calc(100vw-24px)] max-w-[980px] -translate-x-1/2 flex-col items-center gap-y-2 rounded-2xl border border-stone-200 bg-white/[0.92] p-2 shadow-xl backdrop-blur-md md:bottom-8 md:p-3">
+    <div className="fixed bottom-3 left-1/2 z-50 flex w-[calc(100vw-24px)] max-w-[980px] -translate-x-1/2 flex-col items-center gap-y-2 rounded-2xl border border-stone-200 bg-white/[0.92] p-1.5 shadow-xl backdrop-blur-md md:bottom-8 md:p-3">
       {/* Top Row / Left Side */}
-      <div className="flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-2 md:gap-x-3">
+      <div className="flex w-full flex-nowrap items-center justify-start gap-x-1.5 overflow-x-auto px-1 py-0.5 md:flex-wrap md:justify-center md:gap-x-3 md:gap-y-2 md:overflow-visible md:px-0 md:py-0">
         {/* Mode Switcher */}
         <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-3">
           <Tooltip
@@ -215,7 +216,7 @@ export default function Toolbar() {
         </div>
 
         {/* Tool Group (Dynamic based on Mode) */}
-        <div className="flex flex-wrap items-center justify-center gap-2 md:border-r md:border-gray-200 md:pr-3">
+        <div className="flex flex-nowrap items-center justify-center gap-1.5 md:flex-wrap md:gap-2 md:border-r md:border-gray-200 md:pr-3">
           {mode === "DRAWING" ? (
             <>
               <Tooltip label="Hand Tool" shortcut="Space">
@@ -315,7 +316,7 @@ export default function Toolbar() {
                 </button>
               </Tooltip>
 
-              {(showAdvancedTools || isAdvancedToolActive) && (
+              {showOptionsPanel && (
                 <>
                   <Tooltip label="Circle" shortcut="O">
                     <button
@@ -364,7 +365,7 @@ export default function Toolbar() {
             <button
               onClick={() => setShowAdvancedTools((value) => !value)}
               className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
-                showAdvancedTools || isAdvancedToolActive
+                showOptionsPanel
                   ? "bg-gray-900 text-white shadow-md scale-105"
                   : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
               }`}
@@ -400,7 +401,7 @@ export default function Toolbar() {
         </div>
 
         {/* History Group */}
-        <div className="flex items-center gap-1 md:border-r md:border-gray-200 md:pr-3">
+        <div className="hidden items-center gap-1 md:flex md:border-r md:border-gray-200 md:pr-3">
           <Tooltip label="Undo" shortcut="Ctrl + Z">
             <button
               onClick={handleUndo}
@@ -431,7 +432,7 @@ export default function Toolbar() {
         </div>
 
         {/* Auth Group */}
-        <div className="flex items-center md:pl-2">
+        <div className="hidden items-center md:flex md:pl-2">
           {session ? (
             <Tooltip label={`Sign out (${session.user?.name})`}>
               <button
@@ -465,11 +466,11 @@ export default function Toolbar() {
       </div>
 
       {/* Divider */}
-      <div className="w-full h-px bg-gray-200 md:hidden" />
+      <div className={`${showOptionsPanel ? "block" : "hidden"} h-px w-full bg-gray-200 md:hidden`} />
 
       {/* Bottom Row / Right Side */}
-      <div className="flex w-full flex-wrap items-center justify-center gap-2">
-        {(showAdvancedTools || isAdvancedToolActive) && (
+      <div className={`${showOptionsPanel ? "flex" : "hidden"} w-full flex-wrap items-center justify-center gap-2 md:flex`}>
+        {showOptionsPanel && (
           <div className="flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-stone-100/80 p-1 md:rounded-full">
             <NotebookTabs size={16} className="ml-1 text-stone-500" />
             {backgroundOptions.map((option) => (
@@ -543,7 +544,7 @@ export default function Toolbar() {
             </Tooltip>
           </div>
         )}
-        {!showAdvancedTools && !isAdvancedToolActive && (
+        {!showOptionsPanel && (
           <Tooltip label="Backgrounds">
             <button
               onClick={() => setShowAdvancedTools(true)}
@@ -555,33 +556,35 @@ export default function Toolbar() {
           </Tooltip>
         )}
         {/* Color Group */}
-        {activeColors.map((c) => (
-          <Tooltip key={c.value} label={c.name}>
-            <button
-              onClick={() => {
-                setColor(c.value);
-                if (mode === "DRAWING" && tool === "NONE") setTool("PEN");
-              }}
-              className={`w-6 h-6 rounded-full border border-gray-200 transition-transform ${
-                color === c.value && tool !== "ERASER"
-                  ? "border-gray-900 scale-125 shadow-sm"
-                  : "hover:scale-110"
-              }`}
-              style={{ backgroundColor: c.value }}
-            />
+        <div className="flex items-center justify-center gap-2">
+          {activeColors.map((c) => (
+            <Tooltip key={c.value} label={c.name}>
+              <button
+                onClick={() => {
+                  setColor(c.value);
+                  if (mode === "DRAWING" && tool === "NONE") setTool("PEN");
+                }}
+                className={`h-7 w-7 rounded-full border border-gray-200 transition-transform md:h-6 md:w-6 ${
+                  color === c.value && tool !== "ERASER"
+                    ? "scale-110 border-gray-900 shadow-sm md:scale-125"
+                    : "hover:scale-110"
+                }`}
+                style={{ backgroundColor: c.value }}
+              />
+            </Tooltip>
+          ))}
+          {/* Native Color Picker */}
+          <Tooltip label="Custom Color">
+            <div className="relative h-7 w-7 overflow-hidden rounded-full border border-gray-200 transition-transform hover:scale-110 md:h-6 md:w-6">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="absolute left-1/2 top-1/2 h-[150%] w-[150%] -translate-x-1/2 -translate-y-1/2 cursor-pointer border-0 p-0"
+              />
+            </div>
           </Tooltip>
-        ))}
-        {/* Native Color Picker */}
-        <Tooltip label="Custom Color">
-          <div className="relative w-6 h-6 rounded-full overflow-hidden border border-gray-200 hover:scale-110 transition-transform">
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 border-0 cursor-pointer"
-            />
-          </div>
-        </Tooltip>
+        </div>
       </div>
     </div>
   );
