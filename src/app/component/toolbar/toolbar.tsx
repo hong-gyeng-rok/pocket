@@ -195,6 +195,8 @@ export default function Toolbar() {
     { name: "Chalk", value: "dark-chalkboard" },
   ];
   const showOptionsPanel = showAdvancedTools || isAdvancedToolActive;
+  const showMobileDrawingOptions = showOptionsPanel && mode === "DRAWING";
+  const showMobileObjectOptions = showOptionsPanel && mode === "OBJECT";
 
   const toggleMode = () => {
     setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
@@ -554,104 +556,110 @@ export default function Toolbar() {
       <div className={`${showOptionsPanel ? "flex" : "hidden"} w-full flex-wrap items-center justify-center gap-2 md:flex`}>
         {showOptionsPanel && (
           <div className="flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-stone-100/80 p-1 md:rounded-full">
-            <NotebookTabs size={16} className="ml-1 text-stone-500" />
-            {backgroundOptions.map((option) => (
-              <Tooltip key={option.value} label={`${option.name} background`}>
-                <button
-                  onClick={() => setBackground(option.value)}
-                  className={`grid h-8 w-8 place-items-center rounded-full border transition-all ${
-                    background === option.value
-                      ? "border-stone-900 bg-white shadow-sm"
-                      : "border-transparent hover:bg-white/80"
-                  }`}
-                  aria-label={`${option.name} background`}
-                >
-                  <span
-                    className="h-5 w-5 rounded-full border border-stone-300"
-                    style={{ backgroundColor: option.swatch }}
-                  />
-                </button>
-              </Tooltip>
-            ))}
-            <span className="mx-1 hidden h-5 w-px bg-stone-300 md:block" />
-            <Brush size={16} className="ml-1 text-stone-500" />
-            {penOptions.map((option) => (
-              <Tooltip key={option.value} label={option.name}>
-                <button
-                  onClick={() => {
-                    setPenStyle(option.value);
-                    setStrokeWidth(defaultPenSizes[option.value]);
-                    setMode("DRAWING");
-                    setTool("PEN");
-                  }}
-                  className={`min-h-8 rounded-full px-3 text-[11px] font-semibold transition-all ${
-                    penStyle === option.value
-                      ? "bg-stone-900 text-white shadow-sm"
-                      : "text-stone-600 hover:bg-white/80"
-                  }`}
-                >
-                  {option.name}
-                </button>
-              </Tooltip>
-            ))}
-            <div className="flex items-center gap-1 rounded-full bg-white/65 px-1 py-0.5">
-              {penSizeOptions.map((option) => (
-                <Tooltip key={option.value} label={`${option.name} pen size`}>
+            <div className="hidden flex-wrap items-center justify-center gap-1 md:flex">
+              <NotebookTabs size={16} className="ml-1 text-stone-500" />
+              {backgroundOptions.map((option) => (
+                <Tooltip key={option.value} label={`${option.name} background`}>
+                  <button
+                    onClick={() => setBackground(option.value)}
+                    className={`grid h-8 w-8 place-items-center rounded-full border transition-all ${
+                      background === option.value
+                        ? "border-stone-900 bg-white shadow-sm"
+                        : "border-transparent hover:bg-white/80"
+                    }`}
+                    aria-label={`${option.name} background`}
+                  >
+                    <span
+                      className="h-5 w-5 rounded-full border border-stone-300"
+                      style={{ backgroundColor: option.swatch }}
+                    />
+                  </button>
+                </Tooltip>
+              ))}
+              <span className="mx-1 h-5 w-px bg-stone-300" />
+            </div>
+            <div className={`${showMobileDrawingOptions ? "flex" : "hidden"} flex-wrap items-center justify-center gap-1 md:flex`}>
+              <Brush size={16} className="ml-1 text-stone-500" />
+              {penOptions.map((option) => (
+                <Tooltip key={option.value} label={option.name}>
                   <button
                     onClick={() => {
-                      setStrokeWidth(option.value);
+                      setPenStyle(option.value);
+                      setStrokeWidth(defaultPenSizes[option.value]);
                       setMode("DRAWING");
                       setTool("PEN");
                     }}
-                    className={`min-h-7 min-w-7 rounded-full px-2 text-[11px] font-semibold transition-all ${
-                      strokeWidth === option.value
+                    className={`min-h-8 rounded-full px-3 text-[11px] font-semibold transition-all ${
+                      penStyle === option.value
                         ? "bg-stone-900 text-white shadow-sm"
-                        : "text-stone-600 hover:bg-white"
+                        : "text-stone-600 hover:bg-white/80"
                     }`}
                   >
                     {option.name}
                   </button>
                 </Tooltip>
               ))}
+              <div className="flex items-center gap-1 rounded-full bg-white/65 px-1 py-0.5">
+                {penSizeOptions.map((option) => (
+                  <Tooltip key={option.value} label={`${option.name} pen size`}>
+                    <button
+                      onClick={() => {
+                        setStrokeWidth(option.value);
+                        setMode("DRAWING");
+                        setTool("PEN");
+                      }}
+                      className={`min-h-7 min-w-7 rounded-full px-2 text-[11px] font-semibold transition-all ${
+                        strokeWidth === option.value
+                          ? "bg-stone-900 text-white shadow-sm"
+                          : "text-stone-600 hover:bg-white"
+                      }`}
+                    >
+                      {option.name}
+                    </button>
+                  </Tooltip>
+                ))}
+              </div>
+              <span className="mx-1 hidden h-5 w-px bg-stone-300 md:block" />
             </div>
-            <span className="mx-1 hidden h-5 w-px bg-stone-300 md:block" />
-            {themeOptions.map((option) => (
-              <Tooltip key={option.value} label={`${option.name} theme`}>
+            <div className="hidden items-center justify-center gap-1 md:flex">
+              {themeOptions.map((option) => (
+                <Tooltip key={option.value} label={`${option.name} theme`}>
+                  <button
+                    onClick={() => {
+                      setTheme(option.value);
+                      if (option.value === "dark-chalkboard") setBackground("grid");
+                      if (option.value === "warm-notebook") setBackground("notebook");
+                      if (option.value === "clean-paper") setBackground("paper");
+                    }}
+                    className={`min-h-8 rounded-full px-2 text-[11px] font-semibold transition-all ${
+                      theme === option.value
+                        ? "bg-stone-900 text-white shadow-sm"
+                        : "text-stone-600 hover:bg-white/80"
+                    }`}
+                  >
+                    {option.name}
+                  </button>
+                </Tooltip>
+              ))}
+              <Tooltip label={readOnly ? "Disable read mode" : "Read mode"}>
                 <button
-                  onClick={() => {
-                    setTheme(option.value);
-                    if (option.value === "dark-chalkboard") setBackground("grid");
-                    if (option.value === "warm-notebook") setBackground("notebook");
-                    if (option.value === "clean-paper") setBackground("paper");
-                  }}
-                  className={`min-h-8 rounded-full px-2 text-[11px] font-semibold transition-all ${
-                    theme === option.value
-                      ? "bg-stone-900 text-white shadow-sm"
-                      : "text-stone-600 hover:bg-white/80"
+                  onClick={() => setReadOnly(!readOnly)}
+                  className={`grid min-h-8 min-w-8 place-items-center rounded-full transition-all ${
+                    readOnly ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-white/80"
                   }`}
+                  aria-label="Toggle read mode"
                 >
-                  {option.name}
+                  {readOnly ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
               </Tooltip>
-            ))}
-            <Tooltip label={readOnly ? "Disable read mode" : "Read mode"}>
-              <button
-                onClick={() => setReadOnly(!readOnly)}
-                className={`grid min-h-8 min-w-8 place-items-center rounded-full transition-all ${
-                  readOnly ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-white/80"
-                }`}
-                aria-label="Toggle read mode"
-              >
-                {readOnly ? <Eye size={16} /> : <EyeOff size={16} />}
-              </button>
-            </Tooltip>
+            </div>
           </div>
         )}
         {!showOptionsPanel && (
           <Tooltip label="Backgrounds">
             <button
               onClick={() => setShowAdvancedTools(true)}
-              className="min-h-11 min-w-11 rounded-full text-stone-500 transition-all hover:bg-stone-100 hover:text-stone-800"
+              className="hidden min-h-11 min-w-11 rounded-full text-stone-500 transition-all hover:bg-stone-100 hover:text-stone-800 md:block"
               aria-label="Show background options"
             >
               <LayoutGrid size={20} className="mx-auto" />
@@ -659,7 +667,7 @@ export default function Toolbar() {
           </Tooltip>
         )}
         {/* Color Group */}
-        <div className="flex items-center justify-center gap-2">
+        <div className={`${showMobileDrawingOptions || showMobileObjectOptions ? "flex" : "hidden"} items-center justify-center gap-2 md:flex`}>
           {activeColors.map((c) => (
             <Tooltip key={c.value} label={c.name}>
               <button

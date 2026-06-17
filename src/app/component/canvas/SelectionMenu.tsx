@@ -184,7 +184,7 @@ export default function SelectionMenu() {
 
   return (
     <div
-      className="absolute flex items-center justify-center pointer-events-none"
+      className="pointer-events-none absolute hidden items-center justify-center md:flex"
       style={{
         left: bounds.x + bounds.width / 2,
         top: bounds.y - 15 / zoom, 
@@ -192,7 +192,7 @@ export default function SelectionMenu() {
         zIndex: 1000, 
       }}
     >
-      <div className="bg-white rounded-lg shadow-2xl border border-gray-200 p-1.5 flex items-center gap-1 pointer-events-auto">
+      <div className="pointer-events-auto flex max-w-[calc(100vw-24px)] flex-wrap items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white p-1.5 shadow-2xl">
         
         {/* Lock / Unlock */}
         <button

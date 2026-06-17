@@ -111,7 +111,7 @@ export default function MobileSelectionActionBar() {
   ));
 
   return (
-    <div className="fixed bottom-20 left-1/2 z-50 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-xl backdrop-blur md:hidden">
+    <div className="fixed bottom-20 left-1/2 z-50 flex max-w-[calc(100vw-16px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-xl backdrop-blur md:hidden">
       <button
         onClick={duplicateSelection}
         className="grid min-h-11 min-w-11 place-items-center rounded-full text-stone-700 hover:bg-stone-100"

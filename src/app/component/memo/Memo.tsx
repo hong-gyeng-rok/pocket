@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import type { Memo } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
+import { getMemoMarkdownShortcut, renderMemoMarkdown } from "@/lib/memoMarkdown";
 import { X, ChevronDown, GripHorizontal } from "lucide-react";
 
 interface MemoProps {
@@ -36,6 +37,8 @@ export default function MemoComponent({ memo }: MemoProps) {
   const dragStart = useRef({ x: 0, y: 0 });
   const initialSize = useRef({ w: 0, h: 0 });
   const historyPaused = useRef(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const editorFocused = useRef(false);
 
   // Keep latest memo in ref to avoid effect re-runs
   const memoRef = useRef(memo);
@@ -43,6 +46,151 @@ export default function MemoComponent({ memo }: MemoProps) {
   useEffect(() => {
     memoRef.current = memo;
   }, [memo]);
+
+  const getEditorText = useCallback((block: Element) => {
+    const textElement = block.querySelector("[data-md-text]");
+    return (textElement?.textContent ?? block.textContent ?? "").replace(/\u00a0/g, " ");
+  }, []);
+
+  const serializeEditorContent = useCallback((editor: HTMLElement) => {
+    return Array.from(editor.children).map((block) => {
+      const type = block.getAttribute("data-md-type");
+      const text = getEditorText(block);
+
+      if (type === "heading") {
+        const level = Number(block.getAttribute("data-md-level") || 1);
+        return `${"#".repeat(Math.min(3, Math.max(1, level)))} ${text}`;
+      }
+
+      if (type === "checklist") {
+        const checked = block.getAttribute("data-md-checked") === "true";
+        return `- [${checked ? "x" : " "}] ${text}`;
+      }
+
+      if (type === "bullet") return `- ${text}`;
+
+      if (type === "numbered") {
+        const number = Number(block.getAttribute("data-md-number") || 1);
+        return `${Number.isFinite(number) ? number : 1}. ${text}`;
+      }
+
+      return text;
+    }).join("\n");
+  }, [getEditorText]);
+
+  const syncEditorFromMemo = useCallback((content: string) => {
+    if (!editorRef.current) return;
+    editorRef.current.innerHTML = renderMemoMarkdown(content);
+  }, []);
+
+  useEffect(() => {
+    if (editorFocused.current) return;
+    syncEditorFromMemo(memo.content);
+  }, [memo.content, syncEditorFromMemo]);
+
+  const updateContentFromEditor = useCallback(() => {
+    if (!editorRef.current) return;
+    updateMemo(memoRef.current.id, { content: serializeEditorContent(editorRef.current) });
+  }, [serializeEditorContent, updateMemo]);
+
+  const getCurrentMarkdownBlock = useCallback(() => {
+    const selection = window.getSelection();
+    const editor = editorRef.current;
+    if (!selection || !editor || !selection.anchorNode) return null;
+
+    const node = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? selection.anchorNode as Element
+      : selection.anchorNode.parentElement;
+    const block = node?.closest("[data-md-type]");
+    return block && editor.contains(block) ? block as HTMLElement : null;
+  }, []);
+
+  const focusEditableText = useCallback((block: HTMLElement) => {
+    const target = block.querySelector("[data-md-text]") ?? block;
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, []);
+
+  const replaceBlockWithMarkdown = useCallback((block: HTMLElement, markdown: string) => {
+    const template = document.createElement("template");
+    template.innerHTML = renderMemoMarkdown(markdown);
+    const nextBlock = template.content.firstElementChild as HTMLElement | null;
+    if (!nextBlock) return false;
+
+    block.replaceWith(nextBlock);
+    focusEditableText(nextBlock);
+    window.requestAnimationFrame(updateContentFromEditor);
+    return true;
+  }, [focusEditableText, updateContentFromEditor]);
+
+  const insertContinuationBlock = useCallback((block: HTMLElement) => {
+    const type = block.getAttribute("data-md-type");
+    const text = getEditorText(block).trim();
+
+    if (!type || type === "paragraph" || type === "heading") return false;
+
+    if (!text) {
+      return replaceBlockWithMarkdown(block, "");
+    }
+
+    const markup = renderMemoMarkdown(
+      type === "checklist" ? "- [ ] " :
+        type === "bullet" ? "- " :
+          `${Number(block.getAttribute("data-md-number") || 1) + 1}. `
+    );
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    const nextBlock = template.content.firstElementChild as HTMLElement | null;
+    if (!nextBlock) return false;
+
+    block.after(nextBlock);
+    focusEditableText(nextBlock);
+    window.requestAnimationFrame(updateContentFromEditor);
+    return true;
+  }, [focusEditableText, getEditorText, replaceBlockWithMarkdown, updateContentFromEditor]);
+
+  const applySpaceShortcut = useCallback((block: HTMLElement) => {
+    if (block.getAttribute("data-md-type") !== "paragraph") return false;
+
+    const shortcutMarkdown = getMemoMarkdownShortcut(getEditorText(block));
+    if (!shortcutMarkdown) return false;
+
+    return replaceBlockWithMarkdown(block, shortcutMarkdown);
+  }, [getEditorText, replaceBlockWithMarkdown]);
+
+  const handleEditorKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+
+    const block = getCurrentMarkdownBlock();
+    if (!block) return;
+
+    if (event.key === " " && applySpaceShortcut(block)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "Enter" && insertContinuationBlock(block)) {
+      event.preventDefault();
+    }
+  }, [applySpaceShortcut, getCurrentMarkdownBlock, insertContinuationBlock]);
+
+  const handleEditorPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    const checkbox = (event.target as Element).closest("[data-md-checkbox]");
+    if (!checkbox || !editorRef.current) return;
+
+    event.preventDefault();
+    const block = checkbox.closest("[data-md-type='checklist']");
+    if (!block) return;
+    block.setAttribute("data-md-checked", block.getAttribute("data-md-checked") === "true" ? "false" : "true");
+    const nextContent = serializeEditorContent(editorRef.current);
+    updateMemo(memoRef.current.id, { content: nextContent });
+    syncEditorFromMemo(nextContent);
+  }, [serializeEditorContent, syncEditorFromMemo, updateMemo]);
 
   const handleDragStart = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -200,21 +348,29 @@ export default function MemoComponent({ memo }: MemoProps) {
       </div>
 
       {/* Content Area */}
-      <textarea
-        className="relative flex-1 w-full h-full p-3 bg-transparent resize-none focus:outline-none text-stone-800 leading-relaxed font-[var(--app-hand-font)]"
-        value={memo.content}
-        onChange={(e) => updateMemo(memo.id, { content: e.target.value })}
-        onMouseDown={(e) => e.stopPropagation()}
+      <div
+        ref={editorRef}
+        className="relative h-full w-full flex-1 overflow-auto whitespace-pre-wrap break-words bg-transparent p-3 font-[var(--app-hand-font)] leading-relaxed text-stone-800 outline-none empty:before:text-stone-500/55 empty:before:content-[attr(data-placeholder)]"
+        contentEditable
+        suppressContentEditableWarning
+        data-placeholder="Type something..."
+        onInput={updateContentFromEditor}
+        onKeyDown={handleEditorKeyDown}
+        onPointerDown={handleEditorPointerDown}
         onFocus={(event) => {
+          editorFocused.current = true;
           event.currentTarget.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
         }}
-        placeholder="Type something..."
+        onBlur={() => {
+          editorFocused.current = false;
+          updateContentFromEditor();
+          syncEditorFromMemo(memoRef.current.content);
+        }}
         style={{
           fontSize: memo.fontSize === 'sm' ? '16px' :
             memo.fontSize === 'l' ? '22px' :
               memo.fontSize === 'xl' ? '28px' : '18px'
         }}
-        autoFocus={!memo.content}
       />
 
       {/* Resize Handle */}
