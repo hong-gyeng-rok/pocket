@@ -500,12 +500,10 @@ export const drawCanvasObjectsLayer = (
   } = options;
   const viewportBounds = getViewportBounds({ ...camera, width: size.width, height: size.height });
   const objects = [
-    ...images.map((image, index) => ({ kind: 'image' as const, value: image, order: index })),
-    ...shapes.map((shape, index) => ({ kind: 'shape' as const, value: shape, order: images.length + index })),
+    ...shapes.map((shape, index) => ({ kind: 'shape' as const, value: shape, order: index })),
+    ...images.map((image, index) => ({ kind: 'image' as const, value: image, order: shapes.length + index })),
   ].sort((a, b) => {
-    const zIndexA = getObjectZIndex(a.value);
-    const zIndexB = getObjectZIndex(b.value);
-    return zIndexA === zIndexB ? a.order - b.order : zIndexA - zIndexB;
+    return a.order - b.order;
   });
 
   ctx.save();

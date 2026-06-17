@@ -227,7 +227,7 @@ export default function Toolbar() {
   return (
     <div className="fixed bottom-3 left-1/2 z-50 flex w-[calc(100vw-24px)] max-w-[980px] -translate-x-1/2 flex-col items-center gap-y-2 rounded-2xl border border-stone-200 bg-white/[0.92] p-1.5 shadow-xl backdrop-blur-md md:bottom-8 md:p-3">
       {/* Top Row / Left Side */}
-      <div className="flex w-full flex-nowrap items-center justify-start gap-x-1.5 overflow-x-auto px-1 py-0.5 md:flex-wrap md:justify-center md:gap-x-3 md:gap-y-2 md:overflow-visible md:px-0 md:py-0">
+      <div className={`flex w-full flex-nowrap items-center justify-start gap-x-1.5 px-1 py-0.5 md:flex-wrap md:justify-center md:gap-x-3 md:gap-y-2 md:overflow-visible md:px-0 md:py-0 ${showMemoTemplates ? "overflow-visible" : "overflow-x-auto"}`}>
         {/* Mode Switcher */}
         <div className="flex items-center gap-2 md:border-r md:border-gray-200 md:pr-3">
           <Tooltip
@@ -355,7 +355,7 @@ export default function Toolbar() {
                   </button>
                 </Tooltip>
                 {showMemoTemplates && (
-                  <div className="absolute bottom-full left-1/2 z-20 mb-2 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-stone-200 bg-white/95 p-1.5 shadow-xl backdrop-blur">
+                  <div className="absolute bottom-full left-1/2 z-[80] mb-2 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-stone-200 bg-white/95 p-1.5 shadow-xl backdrop-blur">
                     <Tooltip label="Memo">
                       <button
                         onClick={() => createMemo("note")}

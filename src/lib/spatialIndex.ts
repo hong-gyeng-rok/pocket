@@ -190,7 +190,7 @@ export const createSpatialItems = (
     type,
     item,
     bounds: getObjectBounds(item),
-    order: ((item.zIndex ?? 0) * 100000) + orderOffset + index,
+    order: orderOffset + index,
   }));
 };
 

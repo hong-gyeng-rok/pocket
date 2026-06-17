@@ -304,6 +304,7 @@ export default function MemoComponent({ memo }: MemoProps) {
           {/* Font Size Dropdown */}
           <div className="relative">
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 setIsDropdownOpen(!isDropdownOpen);
@@ -319,6 +320,7 @@ export default function MemoComponent({ memo }: MemoProps) {
                 {(['sm', 'm', 'l', 'xl'] as const).map((size) => (
                   <button
                     key={size}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       updateMemo(memo.id, { fontSize: size });
@@ -336,6 +338,7 @@ export default function MemoComponent({ memo }: MemoProps) {
 
           {/* Delete Button */}
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               removeMemo(memo.id);

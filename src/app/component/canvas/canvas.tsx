@@ -157,8 +157,8 @@ export default function Canvas() {
   const spatialIndex = useMemo(() => {
     return createSpatialIndex([
       ...createSpatialItems(shapes, 'SHAPE', 0),
-      ...createSpatialItems(memos, 'MEMO', shapes.length),
-      ...createSpatialItems(images, 'IMAGE', shapes.length + memos.length),
+      ...createSpatialItems(images, 'IMAGE', shapes.length),
+      ...createSpatialItems(memos, 'MEMO', shapes.length + images.length),
     ]);
   }, [images, memos, shapes]);
 
@@ -248,7 +248,7 @@ export default function Canvas() {
     const viewportBounds = getViewportBounds({ ...camera, width: size.width, height: size.height });
     const visibleStrokes = strokeSpatialIndex.queryRect(viewportBounds).map((item) => item.stroke);
 
-    // Layer Priority: background -> images -> shapes -> memos (HTML overlay) -> strokes.
+    // Layer Priority: background -> shapes -> images -> memos (HTML overlay) -> strokes.
     drawCanvasObjectsLayer(context, {
       images,
       shapes,
