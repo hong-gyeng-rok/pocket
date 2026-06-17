@@ -32,6 +32,7 @@ export interface Memo {
   id: string;
   content: string;
   label?: string;
+  zIndex?: number;
   x: number;
   y: number;
   width: number;
@@ -46,6 +47,7 @@ export interface Memo {
 export interface ImageElement {
   id: string;
   src: string;
+  zIndex?: number;
   x: number;
   y: number;
   width: number;
@@ -61,6 +63,7 @@ export interface Shape {
   id: string;
   type: 'RECTANGLE' | 'CIRCLE' | 'TEXT' | 'ARROW';
   label?: string;
+  zIndex?: number;
   x: number;
   y: number;
   width: number;
@@ -269,6 +272,7 @@ const normalizeMemo = (memo: unknown): Memo | undefined => {
     id: asString(memo.id, crypto.randomUUID()),
     content: asString(memo.content, ''),
     label: asOptionalString(memo.label),
+    zIndex: asNumber(memo.zIndex, 0),
     x: asNumber(memo.x, 0),
     y: asNumber(memo.y, 0),
     width: Math.max(1, asNumber(memo.width, DEFAULT_MEMO_WIDTH)),
@@ -290,6 +294,7 @@ const normalizeImage = (image: unknown): ImageElement | undefined => {
   return {
     id: asString(image.id, crypto.randomUUID()),
     src,
+    zIndex: asNumber(image.zIndex, 0),
     x: asNumber(image.x, 0),
     y: asNumber(image.y, 0),
     width: Math.max(1, asNumber(image.width, DEFAULT_OBJECT_WIDTH)),
@@ -307,6 +312,7 @@ const normalizeShape = (shape: unknown): Shape | undefined => {
     id: asString(shape.id, crypto.randomUUID()),
     type: asShapeType(shape.type),
     label: asOptionalString(shape.label),
+    zIndex: asNumber(shape.zIndex, 0),
     x: asNumber(shape.x, 0),
     y: asNumber(shape.y, 0),
     width: asNumber(shape.width, DEFAULT_OBJECT_WIDTH),

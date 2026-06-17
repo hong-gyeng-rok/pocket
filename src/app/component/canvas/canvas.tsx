@@ -35,8 +35,7 @@ import {
 import { createSpatialIndex, createSpatialItems, createStrokeSpatialIndex, createStrokeSpatialItems } from '@/lib/spatialIndex';
 import {
   drawCanvasBackground,
-  drawImagesLayer,
-  drawShapesLayer,
+  drawCanvasObjectsLayer,
   drawStrokesLayer,
   drawToolCursor,
 } from '@/lib/canvasRenderer';
@@ -51,6 +50,10 @@ import { getCursorDirtyRect, mergeDirtyRects } from '@/lib/dirtyRegion';
 
 export default function Canvas() {
   const { canvasRef, contextRef, size } = useCanvas();
+  const {
+    canvasRef: strokeCanvasRef,
+    contextRef: strokeContextRef,
+  } = useCanvas();
 
   // Use Actions (Stable)
   const pan = useCameraStore(state => state.pan);
@@ -207,22 +210,30 @@ export default function Canvas() {
     currentStrokePoints,
     startDrawing,
     continueDrawing,
-    endDrawing
+    endDrawing,
+    cancelDrawing,
   } = useDrawing(screenToWorld);
 
   // Render Frame
   const render = useCallback((dirtyRect?: Rect | null) => {
     const context = contextRef.current;
-    if (!context || size.width === 0 || size.height === 0) return;
+    const strokeContext = strokeContextRef.current;
+    if (!context || !strokeContext || size.width === 0 || size.height === 0) return;
 
     context.save();
+    strokeContext.save();
     if (dirtyRect) {
       context.beginPath();
       context.rect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
       context.clip();
       context.clearRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
+      strokeContext.beginPath();
+      strokeContext.rect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
+      strokeContext.clip();
+      strokeContext.clearRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
     } else {
       context.clearRect(0, 0, size.width, size.height);
+      strokeContext.clearRect(0, 0, size.width, size.height);
     }
 
     const camera = useCameraStore.getState();
@@ -237,22 +248,15 @@ export default function Canvas() {
     const viewportBounds = getViewportBounds({ ...camera, width: size.width, height: size.height });
     const visibleStrokes = strokeSpatialIndex.queryRect(viewportBounds).map((item) => item.stroke);
 
-    // Layer Priority Order:
-    // 1. Images (Bottom)
-    drawImagesLayer(context, {
+    // Layer Priority: background -> images -> shapes -> memos (HTML overlay) -> strokes.
+    drawCanvasObjectsLayer(context, {
       images,
+      shapes,
       selectedIds,
       camera,
       size,
       imageCache: imageCache.current,
       onImageLoad: requestRender,
-    });
-    // 2. Shapes
-    drawShapesLayer(context, {
-      shapes,
-      selectedIds,
-      camera,
-      size,
       tempShape,
       currentTool,
       currentColor,
@@ -263,8 +267,7 @@ export default function Canvas() {
       tempArrow,
       isCreatingArrow: isCreatingArrow.current,
     });
-    // 3. Strokes (Pen) - Top
-    drawStrokesLayer(context, {
+    drawStrokesLayer(strokeContext, {
       strokes: visibleStrokes,
       selectedIds,
       camera,
@@ -281,16 +284,18 @@ export default function Canvas() {
       penStyle: toolState.penStyle,
     });
 
-    drawToolCursor(context, {
+    drawToolCursor(strokeContext, {
       position: currentMousePos.current,
       tool: toolState.tool,
       color: toolState.color,
       strokeWidth: toolState.strokeWidth,
       isSpacePressed,
     });
+    strokeContext.restore();
     context.restore();
   }, [
     contextRef,
+    strokeContextRef,
     currentColor,
     currentStrokePoints,
     currentTool,
@@ -341,13 +346,14 @@ export default function Canvas() {
       pointerGesture.current.lastPinchDistance = distance;
       pointerGesture.current.lastPinchCenter = center;
 
-      // Cancel drawing if more than 1 finger
-      if (isDrawing.current) endDrawing();
+      // Cancel the one-finger stroke that may have started before the second touch.
+      cancelDrawing();
       requestRender();
       return;
     }
 
     if (pointerGesture.current.activePointers.size > 1) {
+      cancelDrawing();
       requestRender();
       return;
     }
@@ -744,7 +750,7 @@ export default function Canvas() {
       setTempShape(null);
       setSelectionBox(null);
       setTempArrow(null);
-      endDrawing();
+      cancelDrawing();
       requestRender();
       return;
     }
@@ -847,7 +853,7 @@ export default function Canvas() {
     endDrawing();
     isDragging.current = false;
     requestRender();
-  }, [screenToWorld, getMousePos, hitTest, findObject, addShape, setSelectedIds, addMemo, endDrawing, selectionBox, tempShape, tempArrow, spatialIndex, strokeSpatialIndex, requestRender, clearLongPressTimer, showGestureToast]);
+  }, [screenToWorld, getMousePos, hitTest, findObject, addShape, setSelectedIds, addMemo, endDrawing, cancelDrawing, selectionBox, tempShape, tempArrow, spatialIndex, strokeSpatialIndex, requestRender, clearLongPressTimer, showGestureToast]);
 
   const handlePointerLeave = (e: React.PointerEvent) => {
     pointerGesture.current.activePointers.delete(e.pointerId);
@@ -902,7 +908,7 @@ export default function Canvas() {
   };
 
   return (
-    <article className="w-screen h-screen overflow-hidden bg-gray-100 touch-none select-none">
+    <article className="relative w-screen h-screen overflow-hidden bg-gray-100 touch-none select-none">
       {readOnly && (
         <div className="pointer-events-none absolute right-4 top-4 z-40 rounded-full border border-stone-200 bg-white/85 px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm backdrop-blur">
           Read only
@@ -921,7 +927,7 @@ export default function Canvas() {
         onPointerLeave={handlePointerLeave}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
-        className={`block touch-none ${(currentTool === 'HAND' || isSpacePressed)
+        className={`relative z-0 block touch-none ${(currentTool === 'HAND' || isSpacePressed)
           ? 'cursor-grab active:cursor-grabbing'
           : isHoveringResizeHandle
             ? 'cursor-nwse-resize'
@@ -933,6 +939,11 @@ export default function Canvas() {
                   ? 'cursor-none'
                   : 'cursor-default'
           }`}
+      />
+      <canvas
+        ref={strokeCanvasRef}
+        className="pointer-events-none absolute inset-0 z-20 block touch-none"
+        aria-hidden="true"
       />
     </article>
   );

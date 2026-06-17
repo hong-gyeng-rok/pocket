@@ -82,6 +82,35 @@ test('normalizeCanvasContent preserves masking tape labels for memos and shapes'
   assert.equal(content.shapes[0].label, 'Flow');
 });
 
+test('normalizeCanvasContent preserves object layer order', () => {
+  const content = normalizeCanvasContent({
+    memos: [
+      { id: 'memo-layer', content: '', zIndex: 4, x: 0, y: 0, width: 100, height: 100, color: '#fff' },
+    ],
+    images: [
+      { id: 'image-layer', src: '/image.png', zIndex: 2, x: 0, y: 0, width: 100, height: 100 },
+    ],
+    shapes: [
+      {
+        id: 'shape-layer',
+        type: 'RECTANGLE',
+        zIndex: 3,
+        x: 0,
+        y: 0,
+        width: 120,
+        height: 80,
+        fillColor: '#BFDBFE',
+        strokeColor: 'transparent',
+        strokeWidth: 0,
+      },
+    ],
+  });
+
+  assert.equal(content.images[0].zIndex, 2);
+  assert.equal(content.shapes[0].zIndex, 3);
+  assert.equal(content.memos[0].zIndex, 4);
+});
+
 test('chunkCanvasContent groups objects by world-space chunk and flattens back', () => {
   const content = normalizeCanvasContent({
     strokes: [

@@ -123,11 +123,17 @@ export const useDrawing = (
     currentStrokePoints.current = [];
   }, [addStroke]);
 
+  const cancelDrawing = useCallback(() => {
+    isDrawing.current = false;
+    currentStrokePoints.current = [];
+  }, []);
+
   return {
     isDrawing,
     currentStrokePoints,
     startDrawing,
     continueDrawing,
-    endDrawing
+    endDrawing,
+    cancelDrawing,
   };
 };

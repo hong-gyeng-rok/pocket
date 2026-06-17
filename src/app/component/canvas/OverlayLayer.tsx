@@ -38,6 +38,7 @@ function SaveStatusIndicator({ status }: { status: SaveStatus }) {
 
 export default function OverlayLayer({ saveStatus }: OverlayLayerProps) {
   const memos = useCanvasStore((state) => state.memos);
+  const sortedMemos = [...memos].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
   const x = useCameraStore((state) => state.x);
   const y = useCameraStore((state) => state.y);
   const zoom = useCameraStore((state) => state.zoom);
@@ -45,7 +46,6 @@ export default function OverlayLayer({ saveStatus }: OverlayLayerProps) {
   return (
     <div 
       className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none"
-      style={{ zIndex: 10 }} // Above canvas
     >
       {/* 
         Transform Container 
@@ -54,7 +54,7 @@ export default function OverlayLayer({ saveStatus }: OverlayLayerProps) {
         Origin must be top-left (0,0) to match canvas coordinate system.
       */}
       <div
-        className="absolute top-0 left-0"
+        className="absolute left-0 top-0 z-10"
         style={{
           transformOrigin: "0 0",
           transform: `scale(${zoom}) translate(${-x}px, ${-y}px)`,
@@ -62,11 +62,19 @@ export default function OverlayLayer({ saveStatus }: OverlayLayerProps) {
           height: 0,
         }}
       >
-        {memos.map((memo) => (
+        {sortedMemos.map((memo) => (
           <MemoComponent key={memo.id} memo={memo} />
         ))}
-        
-        {/* Context Menu for Selection */}
+      </div>
+      <div
+        className="absolute left-0 top-0 z-30"
+        style={{
+          transformOrigin: "0 0",
+          transform: `scale(${zoom}) translate(${-x}px, ${-y}px)`,
+          width: 0,
+          height: 0,
+        }}
+      >
         <SelectionMenu />
       </div>
       <MobileSelectionActionBar />

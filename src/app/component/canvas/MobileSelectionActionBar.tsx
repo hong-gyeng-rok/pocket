@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Lock, Palette, Pin, StickyNote, Tag, Trash2, Unlock } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Copy, Lock, Palette, Pin, StickyNote, Tag, Trash2, Unlock } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import type { Memo } from "@/app/types/canvas";
 
@@ -28,6 +28,7 @@ export default function MobileSelectionActionBar() {
   const removeImage = useCanvasStore((state) => state.removeImage);
   const removeStroke = useCanvasStore((state) => state.removeStroke);
   const setSelectedIds = useCanvasStore((state) => state.setSelectedIds);
+  const moveLayer = useCanvasStore((state) => state.moveLayer);
 
   if (selectedIds.length === 0) return null;
 
@@ -103,6 +104,11 @@ export default function MobileSelectionActionBar() {
     memos.some((memo) => memo.id === id) ||
     shapes.some((shape) => shape.id === id && shape.type !== "ARROW")
   ));
+  const hasLayerSelection = selectedIds.some((id) => (
+    memos.some((memo) => memo.id === id) ||
+    images.some((image) => image.id === id) ||
+    shapes.some((shape) => shape.id === id)
+  ));
 
   return (
     <div className="fixed bottom-20 left-1/2 z-50 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-xl backdrop-blur md:hidden">
@@ -120,6 +126,38 @@ export default function MobileSelectionActionBar() {
       >
         {isAllLocked ? <Lock size={18} /> : <Unlock size={18} />}
       </button>
+      {hasLayerSelection && (
+        <div className="flex items-center gap-1 rounded-full bg-stone-100 px-1 py-1">
+          <button
+            onClick={() => moveLayer(selectedIds, "back")}
+            className="grid h-9 min-w-9 place-items-center rounded-full text-stone-700 hover:bg-white"
+            aria-label="Send to back"
+          >
+            <ArrowDownToLine size={16} />
+          </button>
+          <button
+            onClick={() => moveLayer(selectedIds, "backward")}
+            className="grid h-9 min-w-9 place-items-center rounded-full text-stone-700 hover:bg-white"
+            aria-label="Send backward"
+          >
+            <ArrowDown size={16} />
+          </button>
+          <button
+            onClick={() => moveLayer(selectedIds, "forward")}
+            className="grid h-9 min-w-9 place-items-center rounded-full text-stone-700 hover:bg-white"
+            aria-label="Bring forward"
+          >
+            <ArrowUp size={16} />
+          </button>
+          <button
+            onClick={() => moveLayer(selectedIds, "front")}
+            className="grid h-9 min-w-9 place-items-center rounded-full text-stone-700 hover:bg-white"
+            aria-label="Bring to front"
+          >
+            <ArrowUpToLine size={16} />
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-1 rounded-full bg-stone-100 px-1 py-1">
         <Palette size={16} className="text-stone-500" />
         {noteColors.map((color) => (

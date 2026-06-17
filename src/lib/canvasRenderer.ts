@@ -53,6 +53,8 @@ export interface DrawShapesOptions {
   isCreatingArrow: boolean;
 }
 
+export interface DrawCanvasObjectsOptions extends DrawImagesOptions, DrawShapesOptions {}
+
 export interface DrawStrokesOptions {
   strokes: Stroke[];
   selectedIds: string[];
@@ -92,6 +94,8 @@ const normalizeDrawableRect = (shape: Shape | Rect): Rect => {
     height: Math.abs(shape.height),
   };
 };
+
+const getObjectZIndex = (object: Pick<Shape | ImageElement, 'zIndex'>) => object.zIndex ?? 0;
 
 const drawCleanRect = (ctx: CanvasRenderingContext2D, shape: Shape | Rect, fillColor: string, strokeColor?: string, strokeWidth = 0) => {
   const { x, y, width, height } = normalizeDrawableRect(shape);
@@ -310,7 +314,9 @@ export const drawImagesLayer = (
   ctx.save();
   applyCameraTransform(ctx, camera);
 
-  for (const image of images) {
+  const sortedImages = [...images].sort((a, b) => getObjectZIndex(a) - getObjectZIndex(b));
+
+  for (const image of sortedImages) {
     if (!rectsIntersect(getObjectBounds(image), viewportBounds)) continue;
 
     let imageObject = imageCache.get(image.src);
@@ -369,7 +375,9 @@ export const drawShapesLayer = (
   ctx.save();
   applyCameraTransform(ctx, camera);
 
-  for (const shape of shapes) {
+  const sortedShapes = [...shapes].sort((a, b) => getObjectZIndex(a) - getObjectZIndex(b));
+
+  for (const shape of sortedShapes) {
     if (!rectsIntersect(getObjectBounds(shape), viewportBounds)) continue;
 
     ctx.save();
@@ -393,6 +401,174 @@ export const drawShapesLayer = (
         ? shape.strokeColor
         : shape.fillColor || '#000000';
       drawCleanArrow(ctx, shape.x, shape.y, shape.x + shape.width, shape.y + shape.height, strokeColor, shape.strokeWidth || 4);
+    }
+    drawMaskingTapeLabel(ctx, shape.label, getObjectBounds(shape));
+    ctx.restore();
+
+    if (selectedIds.includes(shape.id)) {
+      ctx.save();
+      ctx.strokeStyle = shape.isLocked ? '#ef4444' : '#3b82f6';
+      ctx.lineWidth = 2;
+      const bounds = getObjectBounds(shape, 4);
+
+      ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+      if (!shape.isLocked) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(bounds.x - 3, bounds.y - 3, 6, 6);
+        ctx.strokeRect(bounds.x - 3, bounds.y - 3, 6, 6);
+        ctx.fillRect(bounds.x + bounds.width - 3, bounds.y + bounds.height - 3, 6, 6);
+        ctx.strokeRect(bounds.x + bounds.width - 3, bounds.y + bounds.height - 3, 6, 6);
+      } else {
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(bounds.x, bounds.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  if (isCreatingShape && tempShape) {
+    ctx.fillStyle = `${currentColor}80`;
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = 1;
+
+    if (currentTool === 'RECTANGLE') {
+      drawCleanRect(ctx, tempShape, `${currentColor}80`, currentColor, 1);
+    } else if (currentTool === 'CIRCLE') {
+      drawCleanEllipse(ctx, tempShape, `${currentColor}80`, currentColor, 1);
+    } else if (currentTool === 'ARROW') {
+      drawCleanArrow(
+        ctx,
+        tempShape.x,
+        tempShape.y,
+        tempShape.x + tempShape.width,
+        tempShape.y + tempShape.height,
+        currentColor,
+        4
+      );
+    }
+  }
+
+  if (isSelecting && selectionBox) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 1;
+    ctx.fillRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+    ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+    ctx.restore();
+  }
+
+  for (const handle of hoverHandles) {
+    ctx.beginPath();
+    ctx.fillStyle = '#3b82f6';
+    ctx.arc(handle.x, handle.y, size.width < 768 ? 10 : 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (isCreatingArrow && tempArrow) {
+    drawCleanArrow(ctx, tempArrow.x1, tempArrow.y1, tempArrow.x2, tempArrow.y2, '#000000', 4);
+  }
+
+  ctx.restore();
+};
+
+export const drawCanvasObjectsLayer = (
+  ctx: CanvasRenderingContext2D,
+  options: DrawCanvasObjectsOptions
+) => {
+  const {
+    images,
+    shapes,
+    selectedIds,
+    camera,
+    size,
+    imageCache,
+    onImageLoad,
+    tempShape,
+    currentTool,
+    currentColor,
+    isCreatingShape,
+    selectionBox,
+    isSelecting,
+    hoverHandles,
+    tempArrow,
+    isCreatingArrow,
+  } = options;
+  const viewportBounds = getViewportBounds({ ...camera, width: size.width, height: size.height });
+  const objects = [
+    ...images.map((image, index) => ({ kind: 'image' as const, value: image, order: index })),
+    ...shapes.map((shape, index) => ({ kind: 'shape' as const, value: shape, order: images.length + index })),
+  ].sort((a, b) => {
+    const zIndexA = getObjectZIndex(a.value);
+    const zIndexB = getObjectZIndex(b.value);
+    return zIndexA === zIndexB ? a.order - b.order : zIndexA - zIndexB;
+  });
+
+  ctx.save();
+  applyCameraTransform(ctx, camera);
+
+  for (const object of objects) {
+    if (!rectsIntersect(getObjectBounds(object.value), viewportBounds)) continue;
+
+    if (object.kind === 'image') {
+      const image = object.value;
+      let imageObject = imageCache.get(image.src);
+      if (!imageObject) {
+        imageObject = new Image();
+        if (onImageLoad) imageObject.onload = onImageLoad;
+        imageObject.src = image.src;
+        imageCache.set(image.src, imageObject);
+      }
+
+      if (imageObject.complete) {
+        ctx.drawImage(imageObject, image.x, image.y, image.width, image.height);
+      }
+
+      if (selectedIds.includes(image.id)) {
+        ctx.save();
+        ctx.strokeStyle = image.isLocked ? '#ef4444' : '#3b82f6';
+        ctx.lineWidth = 2;
+        const bounds = getObjectBounds(image, 4);
+
+        ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        if (!image.isLocked) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(bounds.x + bounds.width - 3, bounds.y + bounds.height - 3, 6, 6);
+          ctx.strokeRect(bounds.x + bounds.width - 3, bounds.y + bounds.height - 3, 6, 6);
+        }
+        ctx.restore();
+      }
+
+      continue;
+    }
+
+    const shape = object.value;
+    ctx.save();
+    const fillColor = shape.fillColor || 'transparent';
+    const strokeColor = shape.strokeColor !== 'transparent' && shape.strokeColor
+      ? shape.strokeColor
+      : shape.fillColor || '#000000';
+    const strokeWidth = shape.strokeColor === 'transparent' ? 0 : shape.strokeWidth;
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = Math.max(strokeWidth || 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (shape.type === 'RECTANGLE') {
+      drawCleanRect(ctx, shape, fillColor, strokeColor, strokeWidth);
+    } else if (shape.type === 'CIRCLE') {
+      drawCleanEllipse(ctx, shape, fillColor, strokeColor, strokeWidth);
+    } else if (shape.type === 'ARROW') {
+      const arrowColor = shape.strokeColor !== 'transparent' && shape.strokeColor
+        ? shape.strokeColor
+        : shape.fillColor || '#000000';
+      drawCleanArrow(ctx, shape.x, shape.y, shape.x + shape.width, shape.y + shape.height, arrowColor, shape.strokeWidth || 4);
     }
     drawMaskingTapeLabel(ctx, shape.label, getObjectBounds(shape));
     ctx.restore();

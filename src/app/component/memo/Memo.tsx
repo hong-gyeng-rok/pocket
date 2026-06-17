@@ -119,6 +119,7 @@ export default function MemoComponent({ memo }: MemoProps) {
         width: memo.width,
         height: memo.height,
         backgroundColor: memo.color,
+        zIndex: memo.zIndex ?? 0,
         transform: 'translate(0, 0)',
         ['--memo-rotation' as string]: `${getMemoRotation(memo.id)}deg`,
       }}
@@ -126,7 +127,7 @@ export default function MemoComponent({ memo }: MemoProps) {
       <div className="pointer-events-none absolute inset-0 opacity-40 mix-blend-multiply [background-image:radial-gradient(circle_at_1px_1px,rgba(90,70,35,0.15)_1px,transparent_0)] [background-size:18px_18px]" />
       {(memo.decoration ?? 'tape') === 'tape' && (
         <input
-          className="absolute left-1/2 top-0 z-10 h-7 w-[min(180px,76%)] -translate-x-1/2 -translate-y-3 rounded-sm border border-amber-200/60 bg-amber-100/90 px-3 text-center text-[12px] font-semibold text-amber-950 shadow-sm outline-none placeholder:text-amber-800/45 focus:border-amber-300 focus:bg-amber-50"
+          className="absolute left-1/2 top-0 z-10 h-8 w-[min(180px,76%)] -translate-x-1/2 -translate-y-3 rounded-sm border border-amber-200/60 bg-amber-100/90 px-3 text-center text-[16px] font-semibold text-amber-950 shadow-sm outline-none placeholder:text-amber-800/45 focus:border-amber-300 focus:bg-amber-50 md:h-7 md:text-[12px]"
           value={memo.label ?? ""}
           onChange={(event) => updateMemo(memo.id, { label: event.target.value })}
           onMouseDown={(event) => event.stopPropagation()}
@@ -209,9 +210,9 @@ export default function MemoComponent({ memo }: MemoProps) {
         }}
         placeholder="Type something..."
         style={{
-          fontSize: memo.fontSize === 'sm' ? '12px' :
-            memo.fontSize === 'l' ? '18px' :
-              memo.fontSize === 'xl' ? '24px' : '14px'
+          fontSize: memo.fontSize === 'sm' ? '16px' :
+            memo.fontSize === 'l' ? '22px' :
+              memo.fontSize === 'xl' ? '28px' : '18px'
         }}
         autoFocus={!memo.content}
       />

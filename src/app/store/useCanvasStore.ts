@@ -34,6 +34,7 @@ export interface CanvasState {
   groupObjects: (ids: string[]) => void;
   ungroupObjects: (ids: string[]) => void;
   toggleLock: (ids: string[]) => void;
+  moveLayer: (ids: string[], direction: 'front' | 'forward' | 'backward' | 'back') => void;
 
   // Memo Actions
   addMemo: (memo: Memo) => void;
@@ -61,6 +62,49 @@ const toStoreState = (content: CanvasContent) => ({
 });
 
 let recordOperation: (operation: CanvasOperation) => void = () => {};
+
+const getObjectZIndex = (object: Pick<Shape | Memo | ImageElement, 'zIndex'>) => object.zIndex ?? 0;
+
+const getLayerTargetZIndex = (
+  objects: Array<Shape | Memo | ImageElement>,
+  selectedIds: string[],
+  direction: 'front' | 'forward' | 'backward' | 'back'
+) => {
+  const selected = objects.filter((object) => selectedIds.includes(object.id));
+  if (selected.length === 0) return null;
+
+  const currentValues = selected.map(getObjectZIndex);
+  const currentMax = Math.max(...currentValues);
+  const currentMin = Math.min(...currentValues);
+  const allValues = objects.map(getObjectZIndex);
+
+  if (direction === 'front') return Math.max(...allValues, 0) + 1;
+  if (direction === 'back') return Math.min(...allValues, 0) - 1;
+  if (direction === 'forward') return currentMax + 1;
+  return currentMin - 1;
+};
+
+const getNextZIndex = (state: Pick<CanvasState, 'images' | 'shapes' | 'memos'>) => {
+  const values = [...state.images, ...state.shapes, ...state.memos].map(getObjectZIndex);
+  return Math.max(0, ...values) + 1;
+};
+
+const updateLayerValues = <T extends Shape | Memo | ImageElement>(
+  objects: T[],
+  selectedIds: string[],
+  zIndex: number | null,
+  kind: 'shape' | 'memo' | 'image'
+) => {
+  if (zIndex === null) return objects;
+
+  return objects.map((object) => {
+    if (!selectedIds.includes(object.id)) return object;
+
+    const after = { ...object, zIndex };
+    recordOperation({ type: 'update', kind, id: object.id, before: object, after } as CanvasOperation);
+    return after;
+  });
+};
 
 export const useCanvasStore = create<CanvasState>()(
   (set) => ({
@@ -117,9 +161,21 @@ export const useCanvasStore = create<CanvasState>()(
       images: state.images.map(i => ids.includes(i.id) ? { ...i, isLocked: !i.isLocked } : i),
     })),
 
+    moveLayer: (ids, direction) => set((state) => {
+      const layerObjects = [...state.images, ...state.shapes, ...state.memos];
+      const targetZIndex = getLayerTargetZIndex(layerObjects, ids, direction);
+
+      return {
+        images: updateLayerValues(state.images, ids, targetZIndex, 'image'),
+        shapes: updateLayerValues(state.shapes, ids, targetZIndex, 'shape'),
+        memos: updateLayerValues(state.memos, ids, targetZIndex, 'memo'),
+      };
+    }),
+
     addMemo: (memo) => set((state) => {
-      recordOperation({ type: 'add', kind: 'memo', value: memo });
-      return { memos: [...state.memos, memo] };
+      const value = { ...memo, zIndex: memo.zIndex ?? getNextZIndex(state) };
+      recordOperation({ type: 'add', kind: 'memo', value });
+      return { memos: [...state.memos, value] };
     }),
 
     updateMemo: (id, updates) => set((state) => {
@@ -184,8 +240,9 @@ export const useCanvasStore = create<CanvasState>()(
     }),
 
     addImage: (image) => set((state) => {
-      recordOperation({ type: 'add', kind: 'image', value: image });
-      return { images: [...state.images, image] };
+      const value = { ...image, zIndex: image.zIndex ?? getNextZIndex(state) };
+      recordOperation({ type: 'add', kind: 'image', value });
+      return { images: [...state.images, value] };
     }),
 
     updateImage: (id, updates) => set((state) => {
@@ -204,8 +261,9 @@ export const useCanvasStore = create<CanvasState>()(
     }),
 
     addShape: (shape) => set((state) => {
-      recordOperation({ type: 'add', kind: 'shape', value: shape });
-      return { shapes: [...state.shapes, shape] };
+      const value = { ...shape, zIndex: shape.zIndex ?? getNextZIndex(state) };
+      recordOperation({ type: 'add', kind: 'shape', value });
+      return { shapes: [...state.shapes, value] };
     }),
 
     updateShape: (id, updates) => set((state) => {

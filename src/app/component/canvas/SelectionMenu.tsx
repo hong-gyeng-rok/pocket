@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Lock, Unlock, Group, Ungroup, Trash2, Copy, Pin, StickyNote, Tag } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Lock, Unlock, Group, Ungroup, Trash2, Copy, Palette, Pin, StickyNote, Tag } from "lucide-react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
 import type { ImageElement, Memo, Point, Shape, Stroke } from "@/app/types/canvas";
 
 type BoundedCanvasObject = Shape | Memo | ImageElement;
+
+const selectionColors = ["#fef3c7", "#fee2e2", "#dbeafe", "#dcfce7", "#fce7f3", "#ffffff"];
 
 export default function SelectionMenu() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
@@ -28,6 +30,7 @@ export default function SelectionMenu() {
   const addShape = useCanvasStore((state) => state.addShape);
   const updateMemo = useCanvasStore((state) => state.updateMemo);
   const updateShape = useCanvasStore((state) => state.updateShape);
+  const moveLayer = useCanvasStore((state) => state.moveLayer);
 
   const zoom = useCameraStore((state) => state.zoom);
 
@@ -136,6 +139,15 @@ export default function SelectionMenu() {
   };
 
   const hasMemoSelection = selectedIds.some(id => memos.some(memo => memo.id === id));
+  const hasColorSelection = selectedIds.some(id => (
+      memos.some(memo => memo.id === id) ||
+      shapes.some(shape => shape.id === id && shape.type !== 'ARROW')
+  ));
+  const hasLayerSelection = selectedIds.some(id => (
+      memos.some(memo => memo.id === id) ||
+      images.some(image => image.id === id) ||
+      shapes.some(shape => shape.id === id)
+  ));
   const hasTapeTargetSelection = selectedIds.some(id => (
       memos.some(memo => memo.id === id) ||
       shapes.some(shape => shape.id === id && shape.type !== 'ARROW')
@@ -143,6 +155,12 @@ export default function SelectionMenu() {
   const applyDecoration = (decoration: NonNullable<Memo["decoration"]>) => {
       selectedIds.forEach(id => {
           if (memos.some(memo => memo.id === id)) updateMemo(id, { decoration });
+      });
+  };
+  const applyColor = (color: string) => {
+      selectedIds.forEach(id => {
+          if (memos.some(memo => memo.id === id)) updateMemo(id, { color });
+          if (shapes.some(shape => shape.id === id && shape.type !== 'ARROW')) updateShape(id, { fillColor: color });
       });
   };
   const editTapeLabel = () => {
@@ -191,6 +209,56 @@ export default function SelectionMenu() {
         >
           <Copy size={16} />
         </button>
+
+        {hasLayerSelection && (
+          <>
+            <div className="w-px h-4 bg-gray-200" />
+            <button
+              onClick={() => moveLayer(selectedIds, "back")}
+              className="p-2 rounded hover:bg-gray-100 text-gray-700"
+              title="Send to back"
+            >
+              <ArrowDownToLine size={16} />
+            </button>
+            <button
+              onClick={() => moveLayer(selectedIds, "backward")}
+              className="p-2 rounded hover:bg-gray-100 text-gray-700"
+              title="Send backward"
+            >
+              <ArrowDown size={16} />
+            </button>
+            <button
+              onClick={() => moveLayer(selectedIds, "forward")}
+              className="p-2 rounded hover:bg-gray-100 text-gray-700"
+              title="Bring forward"
+            >
+              <ArrowUp size={16} />
+            </button>
+            <button
+              onClick={() => moveLayer(selectedIds, "front")}
+              className="p-2 rounded hover:bg-gray-100 text-gray-700"
+              title="Bring to front"
+            >
+              <ArrowUpToLine size={16} />
+            </button>
+          </>
+        )}
+
+        {hasColorSelection && (
+          <>
+            <div className="w-px h-4 bg-gray-200" />
+            <Palette size={16} className="mx-1 text-stone-500" />
+            {selectionColors.map((color) => (
+              <button
+                key={color}
+                onClick={() => applyColor(color)}
+                className="h-6 w-6 rounded-full border border-stone-300 hover:scale-110"
+                style={{ backgroundColor: color }}
+                title={`Set color ${color}`}
+              />
+            ))}
+          </>
+        )}
 
         {hasTapeTargetSelection && (
           <>

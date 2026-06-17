@@ -29,8 +29,8 @@ interface ToolState {
 }
 
 export const useToolStore = create<ToolState>((set) => ({
-  tool: 'PEN',
-  mode: 'DRAWING',
+  tool: 'SELECT',
+  mode: 'OBJECT',
   color: '#000000',
   strokeWidth: 5,
   background: 'paper',

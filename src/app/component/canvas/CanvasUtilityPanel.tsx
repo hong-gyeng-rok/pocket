@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileJson, MapPinned, Plus, Search, X } from "lucide-react";
+import { Download, FileJson, MapPinned, Maximize2, Plus, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useCanvasStore } from "@/app/store/useCanvasStore";
 import { useCameraStore } from "@/app/store/useCameraStore";
@@ -92,6 +92,21 @@ export default function CanvasUtilityPanel() {
     ]);
   };
 
+  const fitToContent = () => {
+    if (!minimap || typeof window === "undefined") return;
+
+    const padding = 96;
+    const availableWidth = Math.max(1, window.innerWidth - padding * 2);
+    const availableHeight = Math.max(1, window.innerHeight - padding * 2);
+    const zoom = Math.max(0.1, Math.min(1.5, availableWidth / minimap.width, availableHeight / minimap.height));
+    const viewWidth = window.innerWidth / zoom;
+    const viewHeight = window.innerHeight / zoom;
+    const centerX = minimap.minX + minimap.width / 2;
+    const centerY = minimap.minY + minimap.height / 2;
+
+    camera.setCamera(centerX - viewWidth / 2, centerY - viewHeight / 2, zoom);
+  };
+
   const exportJson = () => {
     const content = toCanvasContent({ strokes, memos, images, shapes });
     downloadText("pocket-canvas.json", JSON.stringify(content, null, 2), "application/json");
@@ -150,6 +165,14 @@ export default function CanvasUtilityPanel() {
             >
               <Plus size={16} />
               Bookmark
+            </button>
+            <button
+              onClick={fitToContent}
+              disabled={!minimap}
+              className="grid min-h-10 min-w-10 place-items-center rounded-full bg-stone-100 text-stone-700 disabled:text-stone-300"
+              aria-label="Fit all content"
+            >
+              <Maximize2 size={16} />
             </button>
             <button
               onClick={exportPng}

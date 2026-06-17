@@ -8,7 +8,7 @@ import { useCameraStore } from "@/app/store/useCameraStore";
 import { 
   Hand, Pen, Eraser, Undo2, Redo2, Image as ImageIcon, LogIn,
   Square, Circle, Type, MousePointer2, RefreshCw, Minus, MoreHorizontal,
-  LayoutGrid, NotebookTabs, Brush, Eye, EyeOff
+  LayoutGrid, NotebookTabs, Brush, Eye, EyeOff, StickyNote, Heading1, ListChecks
 } from "lucide-react";
 import { useEffect, useState, useRef, ReactNode } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
@@ -64,6 +64,7 @@ export default function Toolbar() {
     tool,
     mode,
     color,
+    strokeWidth,
     background,
     penStyle,
     theme,
@@ -71,18 +72,21 @@ export default function Toolbar() {
     setTool,
     setMode,
     setColor,
+    setStrokeWidth,
     setBackground,
     setPenStyle,
     setTheme,
     setReadOnly,
   } = useToolStore();
   const addImage = useCanvasStore((state) => state.addImage);
+  const addMemo = useCanvasStore((state) => state.addMemo);
   const cameraX = useCameraStore((state) => state.x);
   const cameraY = useCameraStore((state) => state.y);
   
   const [pastStates, setPastStates] = useState<unknown[]>([]);
   const [futureStates, setFutureStates] = useState<unknown[]>([]);
   const [showAdvancedTools, setShowAdvancedTools] = useState(false);
+  const [showMemoTemplates, setShowMemoTemplates] = useState(false);
   const [imageUploadState, setImageUploadState] = useState<"idle" | "uploading" | "fallback" | "error">("idle");
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -175,6 +179,16 @@ export default function Toolbar() {
     { name: "Marker", value: "marker" },
     { name: "Highlighter", value: "highlighter" },
   ];
+  const penSizeOptions = [
+    { name: "S", value: 4 },
+    { name: "M", value: 8 },
+    { name: "L", value: 18 },
+  ];
+  const defaultPenSizes: Record<PenStyle, number> = {
+    pencil: 3,
+    marker: 5,
+    highlighter: 18,
+  };
   const themeOptions: { name: string; value: CanvasTheme }[] = [
     { name: "Clean", value: "clean-paper" },
     { name: "Warm", value: "warm-notebook" },
@@ -184,6 +198,28 @@ export default function Toolbar() {
 
   const toggleMode = () => {
     setMode(mode === 'DRAWING' ? 'OBJECT' : 'DRAWING');
+  };
+
+  const createMemo = (template: "note" | "title" | "checklist") => {
+    const isTitle = template === "title";
+    const isChecklist = template === "checklist";
+
+    addMemo({
+      id: crypto.randomUUID(),
+      content: isChecklist ? "- [ ] Task\n- [ ] Task" : "",
+      label: isTitle ? "Title" : "",
+      x: cameraX + 120,
+      y: cameraY + 120,
+      width: isTitle ? 280 : 240,
+      height: isTitle ? 120 : 180,
+      color: isTitle ? "#ffffff" : "#fef3c7",
+      fontSize: isTitle ? "xl" : "m",
+      decoration: "tape",
+    });
+
+    setMode("OBJECT");
+    setTool("SELECT");
+    setShowMemoTemplates(false);
   };
 
   return (
@@ -302,6 +338,52 @@ export default function Toolbar() {
               </Tooltip>
 
               <div className="w-px h-6 bg-gray-200 mx-1" />
+
+              <div className="relative">
+                <Tooltip label="New memo">
+                  <button
+                    onClick={() => setShowMemoTemplates((value) => !value)}
+                    className={`min-h-11 min-w-11 p-3 rounded-full transition-all ${
+                      showMemoTemplates
+                        ? "bg-gray-900 text-white shadow-md scale-105"
+                        : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                    }`}
+                  >
+                    <StickyNote size={20} />
+                  </button>
+                </Tooltip>
+                {showMemoTemplates && (
+                  <div className="absolute bottom-full left-1/2 z-20 mb-2 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-stone-200 bg-white/95 p-1.5 shadow-xl backdrop-blur">
+                    <Tooltip label="Memo">
+                      <button
+                        onClick={() => createMemo("note")}
+                        className="grid min-h-10 min-w-10 place-items-center rounded-full text-stone-600 hover:bg-stone-100"
+                        aria-label="Create memo"
+                      >
+                        <StickyNote size={18} />
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="Title memo">
+                      <button
+                        onClick={() => createMemo("title")}
+                        className="grid min-h-10 min-w-10 place-items-center rounded-full text-stone-600 hover:bg-stone-100"
+                        aria-label="Create title memo"
+                      >
+                        <Heading1 size={18} />
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="Checklist memo">
+                      <button
+                        onClick={() => createMemo("checklist")}
+                        className="grid min-h-10 min-w-10 place-items-center rounded-full text-stone-600 hover:bg-stone-100"
+                        aria-label="Create checklist memo"
+                      >
+                        <ListChecks size={18} />
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
 
               <Tooltip label="Rectangle" shortcut="R">
                 <button
@@ -498,6 +580,7 @@ export default function Toolbar() {
                 <button
                   onClick={() => {
                     setPenStyle(option.value);
+                    setStrokeWidth(defaultPenSizes[option.value]);
                     setMode("DRAWING");
                     setTool("PEN");
                   }}
@@ -511,6 +594,26 @@ export default function Toolbar() {
                 </button>
               </Tooltip>
             ))}
+            <div className="flex items-center gap-1 rounded-full bg-white/65 px-1 py-0.5">
+              {penSizeOptions.map((option) => (
+                <Tooltip key={option.value} label={`${option.name} pen size`}>
+                  <button
+                    onClick={() => {
+                      setStrokeWidth(option.value);
+                      setMode("DRAWING");
+                      setTool("PEN");
+                    }}
+                    className={`min-h-7 min-w-7 rounded-full px-2 text-[11px] font-semibold transition-all ${
+                      strokeWidth === option.value
+                        ? "bg-stone-900 text-white shadow-sm"
+                        : "text-stone-600 hover:bg-white"
+                    }`}
+                  >
+                    {option.name}
+                  </button>
+                </Tooltip>
+              ))}
+            </div>
             <span className="mx-1 hidden h-5 w-px bg-stone-300 md:block" />
             {themeOptions.map((option) => (
               <Tooltip key={option.value} label={`${option.name} theme`}>
