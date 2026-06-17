@@ -21,6 +21,7 @@ export default function CanvasInitializer({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const isInitialized = useRef(false); 
   const saveRequestId = useRef(0);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // 1. 초기 데이터 로드
   useEffect(() => {
@@ -39,11 +40,13 @@ export default function CanvasInitializer({
       selectedIds: [],
     });
 
-    const readyTimer = setTimeout(() => {
-       isInitialized.current = true;
-    }, 500);
+    queueMicrotask(() => {
+      isInitialized.current = true;
+    });
 
-    return () => clearTimeout(readyTimer);
+    return () => {
+      isInitialized.current = false;
+    };
   }, [canvasId, initialContent]);
 
   // Save Function (Reusable)
@@ -81,13 +84,37 @@ export default function CanvasInitializer({
   }, [canvasId]);
 
   // 2. 자동 저장 (Debounce + Exit Safety)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
   // 최신 상태를 Ref에 담아두어야 Event Listener 안에서 접근 가능 (Closure 문제 해결)
   const stateRef = useRef(toCanvasContent({ strokes, memos, images, shapes }));
   useEffect(() => {
       stateRef.current = toCanvasContent({ strokes, memos, images, shapes });
   }, [strokes, memos, images, shapes]);
+
+  const saveWithBeacon = useCallback((data: CanvasContent) => {
+      if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") {
+          return false;
+      }
+
+      const payload = JSON.stringify({ id: canvasId, content: data });
+      const blob = new Blob([payload], { type: "application/json" });
+      return navigator.sendBeacon("/api/canvas/save", blob);
+  }, [canvasId]);
+
+  const flushSave = useCallback((preferBeacon = false) => {
+      if (!isInitialized.current) return;
+      if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+      }
+
+      const content = stateRef.current;
+      if (preferBeacon && saveWithBeacon(content)) {
+          setSaveStatus("pending");
+          return;
+      }
+
+      void saveToBackend(content);
+  }, [saveToBackend, saveWithBeacon]);
 
   useEffect(() => {
       const handleOffline = () => setSaveStatus("offline");
@@ -121,7 +148,7 @@ export default function CanvasInitializer({
     
     saveTimeoutRef.current = setTimeout(() => {
         saveToBackend(stateRef.current);
-    }, 2000);
+    }, 600);
 
     return () => {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -131,26 +158,25 @@ export default function CanvasInitializer({
   // 3. 페이지 종료/숨김 시 즉시 저장 (Safety Net)
   useEffect(() => {
       const handleUnload = () => {
-          // Force save current state
-          if (isInitialized.current) {
-             saveToBackend(stateRef.current);
-          }
+          flushSave(true);
       };
 
       const handleVisibilityChange = () => {
           if (document.visibilityState === 'hidden' && isInitialized.current) {
-              saveToBackend(stateRef.current);
+              flushSave(true);
           }
       };
 
       window.addEventListener('beforeunload', handleUnload);
+      window.addEventListener('pagehide', handleUnload);
       document.addEventListener('visibilitychange', handleVisibilityChange);
       
       return () => {
           window.removeEventListener('beforeunload', handleUnload);
+          window.removeEventListener('pagehide', handleUnload);
           document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
-  }, [saveToBackend]);
+  }, [flushSave]);
 
   return <CanvasLayout saveStatus={saveStatus} />;
 }

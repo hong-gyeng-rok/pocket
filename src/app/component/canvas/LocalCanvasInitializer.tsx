@@ -29,7 +29,7 @@ export default function LocalCanvasInitializer() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const isInitialized = useRef(false);
   const isImporting = useRef(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(toCanvasContent({ strokes, memos, images, shapes }));
 
   useEffect(() => {
@@ -63,6 +63,15 @@ export default function LocalCanvasInitializer() {
     }
   }, []);
 
+  const flushLocalSave = useCallback(() => {
+    if (!isInitialized.current) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    saveLocalCanvas(stateRef.current);
+  }, [saveLocalCanvas]);
+
   useEffect(() => {
     if (status !== "authenticated" || !isInitialized.current || isImporting.current) return;
 
@@ -91,7 +100,7 @@ export default function LocalCanvasInitializer() {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       saveLocalCanvas(stateRef.current);
-    }, 500);
+    }, 250);
 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -99,13 +108,21 @@ export default function LocalCanvasInitializer() {
   }, [strokes, memos, images, shapes, saveLocalCanvas]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (isInitialized.current) saveLocalCanvas(stateRef.current);
+    const handleBeforeUnload = () => flushLocalSave();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushLocalSave();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [saveLocalCanvas]);
+    window.addEventListener("pagehide", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [flushLocalSave]);
 
   return <CanvasLayout saveStatus={saveStatus} />;
 }

@@ -432,7 +432,7 @@ export default function Toolbar() {
         </div>
 
         {/* Auth Group */}
-        <div className="hidden items-center md:flex md:pl-2">
+        <div className="flex items-center md:pl-2">
           {session ? (
             <Tooltip label={`Sign out (${session.user?.name})`}>
               <button
